@@ -1,0 +1,44 @@
+# Copy this file to config.yaml and fill in your values.
+# See the "Getting Telegram API credentials" section below for app_id/app_hash.
+
+telegram:
+  app_id: 0            # from https://my.telegram.org/apps
+  app_hash: ""          # from https://my.telegram.org/apps
+  phone: ""             # your phone number, international format e.g. +15551234567
+  session: session.session  # where the authenticated session is stored after first login
+
+database:
+  sqlite: ./data/twork.db
+
+matching:
+  mode: whole_word      # whole_word (default, safer) or substring
+
+  positive:
+    - Go
+    - Golang
+    - Backend
+    - REST
+    - PostgreSQL
+    - Redis
+    - Docker
+
+  negative:
+    - Senior
+    - Lead
+    - React
+    - Flutter
+
+notifications:
+  enabled: true
+
+# Chats to monitor. Use "username" for public channels/groups, or "id"
+# for private ones (find the numeric ID by forwarding a message from
+# that chat to @userinfobot, or via the /chats bot command once built).
+# The account (the phone number above) must already be a member --
+# Twork does not join chats automatically.
+chats:
+  - username: golang_jobs
+    tag: Backend
+  - username: devops_jobs
+    tag: DevOps
+    paused: false

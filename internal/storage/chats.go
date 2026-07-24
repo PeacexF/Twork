@@ -1,0 +1,68 @@
+package storage
+
+import (
+	"context"
+	"database/sql"
+
+	"github.com/PeacexF/Twork/internal/models"
+)
+
+func (s *Store) ListChats(ctx context.Context) ([]models.Chat, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT id, telegram_id, access_hash, kind, title, username, tag, paused, created_at
+		FROM chats
+		ORDER BY created_at DESC
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []models.Chat
+	for rows.Next() {
+		var c models.Chat
+		var kind string
+		var pausedInt int
+		if err := rows.Scan(&c.ID, &c.TelegramID, &c.AccessHash, &kind, &c.Title, &c.Username, &c.Tag, &pausedInt, &c.CreatedAt); err != nil {
+			return nil, err
+		}
+		c.Kind = models.ChatKind(kind)
+		c.Paused = pausedInt != 0
+		out = append(out, c)
+	}
+	return out, rows.Err()
+}
+
+func (s *Store) GetChatByTelegramID(ctx context.Context, telegramID int64) (*models.Chat, error) {
+	var c models.Chat
+	var kind string
+	var pausedInt int
+	err := s.db.QueryRowContext(ctx, `
+		SELECT id, telegram_id, access_hash, kind, title, username, tag, paused, created_at
+		FROM chats WHERE telegram_id = ?
+	`, telegramID).Scan(&c.ID, &c.TelegramID, &c.AccessHash, &kind, &c.Title, &c.Username, &c.Tag, &pausedInt, &c.CreatedAt)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	c.Kind = models.ChatKind(kind)
+	c.Paused = pausedInt != 0
+	return &c, nil
+}
+
+func (s *Store) SetChatPaused(ctx context.Context, telegramID int64, paused bool) error {
+	_, err := s.db.ExecContext(ctx, `UPDATE chats SET paused = ? WHERE telegram_id = ?`, boolToInt(paused), telegramID)
+	return err
+}
+
+func (s *Store) SetChatTag(ctx context.Context, telegramID int64, tag string) error {
+	_, err := s.db.ExecContext(ctx, `UPDATE chats SET tag = ? WHERE telegram_id = ?`, tag, telegramID)
+	return err
+}
+
+func (s *Store) RemoveChat(ctx context.Context, telegramID int64) error {
+	_, err := s.db.ExecContext(ctx, `DELETE FROM chats WHERE telegram_id = ?`, telegramID)
+	return err
+}

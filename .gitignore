@@ -31,6 +31,9 @@ go.work.sum
 # .idea/
 # .vscode/
 
+session.session
+data/
+
 .DS_Store
 .DS_Store?
 ._*
@@ -41,7 +44,6 @@ Thumbs.db
 ehthumbs.db
 __pycache__/
 main
-collector
 websocket
 venv/
 context/
