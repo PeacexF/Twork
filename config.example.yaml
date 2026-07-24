@@ -2,13 +2,22 @@
 # See the "Getting Telegram API credentials" section below for app_id/app_hash.
 
 telegram:
-  app_id: 0            # from https://my.telegram.org/apps
-  app_hash: ""          # from https://my.telegram.org/apps
-  phone: ""             # your phone number, international format e.g. +15551234567
-  session: session.session  # where the authenticated session is stored after first login
+  app_id: 0                   # from https://my.telegram.org/apps
+  app_hash: ""                # from https://my.telegram.org/apps
+  phone: ""                   # your phone number, international format e.g. +15551234567
+  session: session.session    # where the authenticated MTProto session is stored after first login
+
+bot:
+  token: ""                   # from @BotFather on Telegram
+  owner_id: 0                 # leave at 0 -- the first person to send /start to the bot claims it
 
 database:
   sqlite: ./data/twork.db
+
+# Everything below (matching, notifications, chats) is only used to
+# seed the database the very first time Twork runs. After that, the
+# bot's Keywords/Settings/Chats menus are authoritative and these
+# values are ignored -- editing this file later has no effect.
 
 matching:
   mode: whole_word      # whole_word (default, safer) or substring
@@ -32,13 +41,8 @@ notifications:
   enabled: true
 
 # Chats to monitor. Use "username" for public channels/groups, or "id"
-# for private ones (find the numeric ID by forwarding a message from
-# that chat to @userinfobot, or via the /chats bot command once built).
-# The account (the phone number above) must already be a member --
-# Twork does not join chats automatically.
-chats:
-  - username: golang_jobs
-    tag: Backend
-  - username: devops_jobs
-    tag: DevOps
-    paused: false
+# for private ones. The account (the phone number above) must already
+# be a member for "id"-based private chats -- or just leave this empty
+# and add chats through the bot's Chats menu instead, which can resolve
+# public usernames and join invite links on its own.
+chats: []
