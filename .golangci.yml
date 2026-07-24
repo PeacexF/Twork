@@ -1,0 +1,12 @@
+run:
+  build-tags:
+    - sqlite_fts5
+
+linters:
+  disable-all: true
+  enable:
+    - govet
+    - staticcheck
+    - unused
+    - errcheck
+    - ineffassign
