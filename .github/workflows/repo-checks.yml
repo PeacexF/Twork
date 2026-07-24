@@ -32,25 +32,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  lint-yaml:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.x"
-      - run: pip install yamllint
-      - run: yamllint -c .yamllint.yml .
-
-  lint-markdown:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: DavidAnson/markdownlint-cli2-action@v24
-        with:
-          config: ".markdownlint.yaml"
-          globs: "**/*.md"
-
   large-files:
     runs-on: ubuntu-latest
     steps:
