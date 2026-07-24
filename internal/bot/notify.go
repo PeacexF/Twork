@@ -12,6 +12,7 @@ import (
 	"github.com/PeacexF/Twork/internal/models"
 )
 
+// sends a live-match alert if notifications are enabled
 func (b *Bot) NotifyMatch(ctx context.Context, msg models.Message, messageID int64, matchedKeywords []string) {
 	if b.ownerID == 0 {
 		return
@@ -47,6 +48,7 @@ func (b *Bot) NotifyMatch(ctx context.Context, msg models.Message, messageID int
 	}
 }
 
+// handles Save/Dismiss on a notification
 func (b *Bot) handleNotifyCallback(ctx context.Context, cq *tgbotapi.CallbackQuery, data string) {
 	switch {
 	case data == "notify:dismiss":

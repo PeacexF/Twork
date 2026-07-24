@@ -21,6 +21,7 @@ type MatchResult struct {
 	NegativeKeyword string
 }
 
+// reports whether the match has at least one keyword and no negative hit
 func (m MatchResult) Matched() bool {
 	return len(m.MatchedKeywords) > 0 && m.NegativeKeyword == ""
 }

@@ -6,6 +6,7 @@ import (
 	"github.com/PeacexF/Twork/internal/config"
 )
 
+// builds a Matcher or fails the test
 func mustNew(t *testing.T, cfg config.MatchingConfig) *Matcher {
 	t.Helper()
 	m, err := New(cfg)
@@ -15,6 +16,7 @@ func mustNew(t *testing.T, cfg config.MatchingConfig) *Matcher {
 	return m
 }
 
+// positive keywords match on word boundaries
 func TestMatch_WholeWord_Basic(t *testing.T) {
 	m := mustNew(t, config.MatchingConfig{
 		Positive: []string{"Go", "Docker", "PostgreSQL"},
@@ -37,6 +39,7 @@ func TestMatch_WholeWord_Basic(t *testing.T) {
 	}
 }
 
+// whole-word mode must not match inside a longer word
 func TestMatch_WholeWord_AvoidsSubstringFalsePositive(t *testing.T) {
 	m := mustNew(t, config.MatchingConfig{
 		Positive: []string{"Go"},
@@ -49,6 +52,7 @@ func TestMatch_WholeWord_AvoidsSubstringFalsePositive(t *testing.T) {
 	}
 }
 
+// substring mode matches inside a longer word
 func TestMatch_Substring_MatchesInsideWords(t *testing.T) {
 	m := mustNew(t, config.MatchingConfig{
 		Positive: []string{"Go"},
@@ -61,6 +65,7 @@ func TestMatch_Substring_MatchesInsideWords(t *testing.T) {
 	}
 }
 
+// a negative keyword rejects the message and hides positive hits
 func TestMatch_NegativeKeywordRejects(t *testing.T) {
 	m := mustNew(t, config.MatchingConfig{
 		Positive: []string{"Go", "Docker"},
@@ -80,6 +85,7 @@ func TestMatch_NegativeKeywordRejects(t *testing.T) {
 	}
 }
 
+// keyword matching is case-insensitive
 func TestMatch_CaseInsensitive(t *testing.T) {
 	m := mustNew(t, config.MatchingConfig{
 		Positive: []string{"docker"},
@@ -92,6 +98,7 @@ func TestMatch_CaseInsensitive(t *testing.T) {
 	}
 }
 
+// no configured keyword present means no match
 func TestMatch_NoPositiveKeywordFound(t *testing.T) {
 	m := mustNew(t, config.MatchingConfig{
 		Positive: []string{"Rust"},
@@ -104,6 +111,7 @@ func TestMatch_NoPositiveKeywordFound(t *testing.T) {
 	}
 }
 
+// keywords with regex metacharacters (C++, C#) still match correctly
 func TestMatch_KeywordWithRegexMetacharacters(t *testing.T) {
 	m := mustNew(t, config.MatchingConfig{
 		Positive: []string{"C++", "C#"},
@@ -119,6 +127,7 @@ func TestMatch_KeywordWithRegexMetacharacters(t *testing.T) {
 	}
 }
 
+// Store.Set swaps the matcher returned by Get
 func TestStore_GetSet(t *testing.T) {
 	m1 := mustNew(t, config.MatchingConfig{Positive: []string{"Go"}, Mode: config.MatchModeWholeWord})
 	m2 := mustNew(t, config.MatchingConfig{Positive: []string{"Rust"}, Mode: config.MatchModeWholeWord})

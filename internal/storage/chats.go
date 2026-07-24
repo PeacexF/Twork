@@ -7,6 +7,7 @@ import (
 	"github.com/PeacexF/Twork/internal/models"
 )
 
+// lists monitored chats, newest first
 func (s *Store) ListChats(ctx context.Context) ([]models.Chat, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, telegram_id, access_hash, kind, title, username, tag, paused, created_at
@@ -33,6 +34,7 @@ func (s *Store) ListChats(ctx context.Context) ([]models.Chat, error) {
 	return out, rows.Err()
 }
 
+// looks up one monitored chat, or nil if not monitored
 func (s *Store) GetChatByTelegramID(ctx context.Context, telegramID int64) (*models.Chat, error) {
 	var c models.Chat
 	var kind string
@@ -52,16 +54,19 @@ func (s *Store) GetChatByTelegramID(ctx context.Context, telegramID int64) (*mod
 	return &c, nil
 }
 
+// sets a chat's paused flag
 func (s *Store) SetChatPaused(ctx context.Context, telegramID int64, paused bool) error {
 	_, err := s.db.ExecContext(ctx, `UPDATE chats SET paused = ? WHERE telegram_id = ?`, boolToInt(paused), telegramID)
 	return err
 }
 
+// updates a chat's tag
 func (s *Store) SetChatTag(ctx context.Context, telegramID int64, tag string) error {
 	_, err := s.db.ExecContext(ctx, `UPDATE chats SET tag = ? WHERE telegram_id = ?`, tag, telegramID)
 	return err
 }
 
+// stops monitoring a chat, keeping its indexed history
 func (s *Store) RemoveChat(ctx context.Context, telegramID int64) error {
 	_, err := s.db.ExecContext(ctx, `DELETE FROM chats WHERE telegram_id = ?`, telegramID)
 	return err

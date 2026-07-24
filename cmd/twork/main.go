@@ -19,6 +19,7 @@ import (
 	"github.com/PeacexF/Twork/internal/storage"
 )
 
+// parses flags and runs the app
 func main() {
 	configPath := flag.String("config", "config.yaml", "path to config.yaml")
 	flag.Parse()
@@ -28,6 +29,7 @@ func main() {
 	}
 }
 
+// wires config, storage, matcher, collector, and bot together and blocks until shutdown
 func run(configPath string) error {
 	cfg, err := config.Load(configPath)
 	if err != nil {
@@ -95,6 +97,7 @@ func run(configPath string) error {
 	return runConcurrently(ctx, stop, coll.Run, b.Run)
 }
 
+// loads keywords from storage, seeding from config.yaml on first run
 func bootstrapMatcher(ctx context.Context, store *storage.Store, cfg *config.Config) (*matcher.Store, error) {
 	kw, ok, err := store.GetKeywords(ctx)
 	if err != nil {
@@ -113,6 +116,7 @@ func bootstrapMatcher(ctx context.Context, store *storage.Store, cfg *config.Con
 	return matcher.NewStore(m), nil
 }
 
+// seeds the notifications toggle from config.yaml on first run
 func bootstrapNotifications(ctx context.Context, store *storage.Store, cfg *config.Config) error {
 	if _, ok, err := store.GetNotificationsEnabled(ctx); err != nil {
 		return err
@@ -122,6 +126,7 @@ func bootstrapNotifications(ctx context.Context, store *storage.Store, cfg *conf
 	return nil
 }
 
+// runs fns concurrently, cancelling all of them on the first return
 func runConcurrently(ctx context.Context, stop context.CancelFunc, fns ...func(context.Context) error) error {
 	errCh := make(chan error, len(fns))
 	for _, fn := range fns {

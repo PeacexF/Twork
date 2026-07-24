@@ -33,6 +33,7 @@ go.work.sum
 
 session.session
 data/
+config.yaml
 
 .DS_Store
 .DS_Store?

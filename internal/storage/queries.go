@@ -17,6 +17,7 @@ type MatchRow struct {
 	Bookmarked      bool
 }
 
+// pages keyword-matched messages, newest first
 func (s *Store) ListMatches(ctx context.Context, limit, offset int) ([]MatchRow, int, error) {
 	return s.pagedMatchQuery(ctx, `
 		SELECT m.id, m.chat_title, m.text, m.link, m.ts, ma.matched_keywords,
@@ -29,6 +30,7 @@ func (s *Store) ListMatches(ctx context.Context, limit, offset int) ([]MatchRow,
 	`, `SELECT COUNT(1) FROM matches`, limit, offset)
 }
 
+// pages saved/favorited messages, newest first
 func (s *Store) ListBookmarked(ctx context.Context, limit, offset int) ([]MatchRow, int, error) {
 	return s.pagedMatchQuery(ctx, `
 		SELECT m.id, m.chat_title, m.text, m.link, m.ts,
@@ -42,6 +44,7 @@ func (s *Store) ListBookmarked(ctx context.Context, limit, offset int) ([]MatchR
 	`, `SELECT COUNT(1) FROM message_status WHERE bookmarked = 1`, limit, offset)
 }
 
+// pages FTS5 search results
 func (s *Store) SearchPaged(ctx context.Context, query string, limit, offset int) ([]MatchRow, int, error) {
 	return s.pagedMatchQuery(ctx, `
 		SELECT m.id, m.chat_title, m.text, m.link, m.ts,
@@ -56,6 +59,7 @@ func (s *Store) SearchPaged(ctx context.Context, query string, limit, offset int
 	`, `SELECT COUNT(1) FROM messages_fts WHERE messages_fts MATCH ?`, limit, offset, query)
 }
 
+// runs a page query plus its matching count query
 func (s *Store) pagedMatchQuery(ctx context.Context, query, countQuery string, limit, offset int, extraArgs ...string) ([]MatchRow, int, error) {
 	if limit <= 0 {
 		limit = 10
@@ -97,6 +101,7 @@ func (s *Store) pagedMatchQuery(ctx context.Context, query, countQuery string, l
 	return out, total, nil
 }
 
+// fetches one message with its match/bookmark status
 func (s *Store) GetMatchRow(ctx context.Context, messageID int64) (*MatchRow, error) {
 	var r MatchRow
 	var keywordsJSON string
@@ -117,6 +122,7 @@ func (s *Store) GetMatchRow(ctx context.Context, messageID int64) (*MatchRow, er
 	return &r, nil
 }
 
+// flips a message's saved flag and returns the new state
 func (s *Store) ToggleBookmark(ctx context.Context, messageID int64) (bool, error) {
 	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO message_status (message_id, bookmarked) VALUES (?, 1)

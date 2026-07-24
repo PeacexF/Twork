@@ -7,6 +7,7 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
+// routes settings: callbacks
 func (b *Bot) handleSettingsCallback(ctx context.Context, data string) {
 	if data == "settings:notify_toggle" {
 		enabled, _, err := b.store.GetNotificationsEnabled(ctx)
@@ -20,6 +21,7 @@ func (b *Bot) handleSettingsCallback(ctx context.Context, data string) {
 	b.showSettingsMenu(ctx)
 }
 
+// renders the settings menu
 func (b *Bot) showSettingsMenu(ctx context.Context) {
 	enabled, _, err := b.store.GetNotificationsEnabled(ctx)
 	if err != nil {

@@ -25,6 +25,7 @@ type Bot struct {
 	sess              *session
 }
 
+// builds a Bot around the given token and dependencies
 func New(token string, ownerID int64, store *storage.Store, matchStore *matcher.Store, coll *collector.Collector) (*Bot, error) {
 	api, err := tgbotapi.NewBotAPI(token)
 	if err != nil {
@@ -40,6 +41,7 @@ func New(token string, ownerID int64, store *storage.Store, matchStore *matcher.
 	}, nil
 }
 
+// resolves the owner, then processes updates until ctx is cancelled
 func (b *Bot) Run(ctx context.Context) error {
 	if b.configuredOwnerID != 0 {
 		b.ownerID = b.configuredOwnerID
@@ -69,6 +71,7 @@ func (b *Bot) Run(ctx context.Context) error {
 	}
 }
 
+// routes one update to the message or callback handler
 func (b *Bot) dispatch(ctx context.Context, update tgbotapi.Update) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -84,6 +87,7 @@ func (b *Bot) dispatch(ctx context.Context, update tgbotapi.Update) {
 	}
 }
 
+// handles /start, /help, and replies to an active prompt
 func (b *Bot) handleMessage(ctx context.Context, msg *tgbotapi.Message) {
 	if msg.IsCommand() {
 		switch msg.Command() {
@@ -104,10 +108,12 @@ func (b *Bot) handleMessage(ctx context.Context, msg *tgbotapi.Message) {
 	b.handlePendingInput(ctx, msg)
 }
 
+// reports whether userID is the claimed owner
 func (b *Bot) authorized(userID int64) bool {
 	return b.ownerID != 0 && userID == b.ownerID
 }
 
+// claims ownership if unclaimed, then opens the home menu
 func (b *Bot) handleStart(ctx context.Context, msg *tgbotapi.Message) {
 	if b.ownerID == 0 {
 		b.ownerID = msg.From.ID
@@ -123,6 +129,7 @@ func (b *Bot) handleStart(ctx context.Context, msg *tgbotapi.Message) {
 	b.openHome(ctx, msg.Chat.ID)
 }
 
+// sends the help text
 func (b *Bot) handleHelp(ctx context.Context, msg *tgbotapi.Message) {
 	if !b.authorized(msg.From.ID) {
 		return
@@ -136,6 +143,7 @@ func (b *Bot) handleHelp(ctx context.Context, msg *tgbotapi.Message) {
 		"⚙️ Settings -- notifications and matching options")
 }
 
+// routes a button press by its callback_data
 func (b *Bot) handleCallback(ctx context.Context, cq *tgbotapi.CallbackQuery) {
 	if !b.authorized(cq.From.ID) {
 		b.answerCallback(cq.ID, "")
@@ -165,6 +173,7 @@ func (b *Bot) handleCallback(ctx context.Context, cq *tgbotapi.CallbackQuery) {
 	}
 }
 
+// routes callback_data by its namespace prefix
 func (b *Bot) routeNamespaced(ctx context.Context, cq *tgbotapi.CallbackQuery, data string) {
 	switch {
 	case hasPrefix(data, "chat:"):
@@ -180,6 +189,7 @@ func (b *Bot) routeNamespaced(ctx context.Context, cq *tgbotapi.CallbackQuery, d
 	}
 }
 
+// reports whether s starts with prefix
 func hasPrefix(s, prefix string) bool {
 	return len(s) >= len(prefix) && s[:len(prefix)] == prefix
 }

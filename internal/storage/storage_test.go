@@ -9,6 +9,7 @@ import (
 	"github.com/PeacexF/Twork/internal/models"
 )
 
+// opens a temp-file store for a test
 func newTestStore(t *testing.T) *Store {
 	t.Helper()
 	dir := t.TempDir()
@@ -20,6 +21,7 @@ func newTestStore(t *testing.T) *Store {
 	return s
 }
 
+// a reusable sample message fixture
 func sampleMessage() models.Message {
 	return models.Message{
 		TelegramMessageID: 42,
@@ -33,6 +35,7 @@ func sampleMessage() models.Message {
 	}
 }
 
+// re-inserting the same Telegram message returns the same row id
 func TestInsertMessage_IsIdempotent(t *testing.T) {
 	s := newTestStore(t)
 	ctx := context.Background()
@@ -51,6 +54,7 @@ func TestInsertMessage_IsIdempotent(t *testing.T) {
 	}
 }
 
+// duplicate detection is exact-text only, no fuzzy matching
 func TestIsDuplicate_ExactTextOnly(t *testing.T) {
 	s := newTestStore(t)
 	ctx := context.Background()
@@ -85,6 +89,7 @@ func TestIsDuplicate_ExactTextOnly(t *testing.T) {
 	}
 }
 
+// FTS5 search finds an inserted message and ignores absent terms
 func TestSearch_FTS5_FindsInsertedMessage(t *testing.T) {
 	s := newTestStore(t)
 	ctx := context.Background()
@@ -114,6 +119,7 @@ func TestSearch_FTS5_FindsInsertedMessage(t *testing.T) {
 	}
 }
 
+// recording a match updates the dashboard stats
 func TestRecordMatchAndStats(t *testing.T) {
 	s := newTestStore(t)
 	ctx := context.Background()

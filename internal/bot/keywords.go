@@ -14,6 +14,7 @@ import (
 	"github.com/PeacexF/Twork/internal/storage"
 )
 
+// routes kw: callbacks
 func (b *Bot) handleKeywordsCallback(ctx context.Context, data string) {
 	switch {
 	case data == "kw:add_pos":
@@ -35,6 +36,7 @@ func (b *Bot) handleKeywordsCallback(ctx context.Context, data string) {
 	}
 }
 
+// loads keywords, defaulting the mode if unset
 func (b *Bot) loadKeywords(ctx context.Context) storage.Keywords {
 	kw, ok, err := b.store.GetKeywords(ctx)
 	if err != nil {
@@ -46,6 +48,7 @@ func (b *Bot) loadKeywords(ctx context.Context) storage.Keywords {
 	return kw
 }
 
+// renders the keyword lists and mode toggle
 func (b *Bot) showKeywordsMenu(ctx context.Context) {
 	kw := b.loadKeywords(ctx)
 
@@ -69,6 +72,7 @@ func (b *Bot) showKeywordsMenu(ctx context.Context) {
 	b.editHome(ctx, text, kb)
 }
 
+// formats words as a bullet list
 func bulletList(words []string) string {
 	if len(words) == 0 {
 		return "(none)"
@@ -80,6 +84,7 @@ func bulletList(words []string) string {
 	return strings.TrimRight(sb.String(), "\n")
 }
 
+// labels the mode toggle button
 func modeToggleLabel(mode string) string {
 	if mode == config.MatchModeWholeWord {
 		return "🔁 Mode: whole word (tap for substring)"
@@ -87,6 +92,7 @@ func modeToggleLabel(mode string) string {
 	return "🔁 Mode: substring (tap for whole word)"
 }
 
+// shows each keyword as a removable button
 func (b *Bot) showRemoveKeywordMenu(ctx context.Context, positive bool) {
 	kw := b.loadKeywords(ctx)
 	words := kw.Negative
@@ -113,6 +119,7 @@ func (b *Bot) showRemoveKeywordMenu(ctx context.Context, positive bool) {
 	b.editHome(ctx, text, tgbotapi.NewInlineKeyboardMarkup(rows...))
 }
 
+// removes one keyword by index
 func (b *Bot) removeKeyword(ctx context.Context, positive bool, index int) {
 	kw := b.loadKeywords(ctx)
 	list := &kw.Negative
@@ -126,6 +133,7 @@ func (b *Bot) removeKeyword(ctx context.Context, positive bool, index int) {
 	b.showRemoveKeywordMenu(ctx, positive)
 }
 
+// flips whole_word/substring mode
 func (b *Bot) toggleMode(ctx context.Context) {
 	kw := b.loadKeywords(ctx)
 	if kw.Mode == config.MatchModeWholeWord {
@@ -137,6 +145,7 @@ func (b *Bot) toggleMode(ctx context.Context) {
 	b.showKeywordsMenu(ctx)
 }
 
+// persists keywords and hot-swaps the live matcher
 func (b *Bot) saveKeywords(ctx context.Context, kw storage.Keywords) {
 	if err := b.store.SetKeywords(ctx, kw); err != nil {
 		log.Printf("twork: saving keywords failed: %v", err)
@@ -150,6 +159,7 @@ func (b *Bot) saveKeywords(ctx context.Context, kw storage.Keywords) {
 	b.matchStore.Set(m)
 }
 
+// splits comma/newline separated keywords
 func parseKeywordInput(text string) []string {
 	fields := strings.FieldsFunc(text, func(r rune) bool { return r == ',' || r == '\n' })
 	var out []string

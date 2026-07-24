@@ -13,6 +13,7 @@ import (
 
 const exportPageSize = 200
 
+// exports the active view to a .md file and sends it
 func (b *Bot) exportCurrentView(ctx context.Context) {
 	rows, title, err := b.collectViewRows(ctx)
 	if err != nil {
@@ -34,6 +35,7 @@ func (b *Bot) exportCurrentView(ctx context.Context) {
 	}
 }
 
+// fetches every row of the active view, paged
 func (b *Bot) collectViewRows(ctx context.Context) ([]storage.MatchRow, string, error) {
 	var (
 		all   []storage.MatchRow
@@ -71,6 +73,7 @@ func (b *Bot) collectViewRows(ctx context.Context) ([]storage.MatchRow, string, 
 	return all, title, nil
 }
 
+// renders rows as a Markdown document
 func renderMarkdown(title string, rows []storage.MatchRow) string {
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "# %s\n\n", title)
@@ -87,6 +90,7 @@ func renderMarkdown(title string, rows []storage.MatchRow) string {
 	return sb.String()
 }
 
+// sanitizes a title into a safe filename
 func exportFilename(title string) string {
 	safe := strings.Map(func(r rune) rune {
 		switch {

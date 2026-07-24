@@ -7,6 +7,7 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
+// handles a free-text reply to the active prompt
 func (b *Bot) handlePendingInput(ctx context.Context, msg *tgbotapi.Message) {
 	pending := b.sess.pending
 	text := strings.TrimSpace(msg.Text)
@@ -45,6 +46,7 @@ func (b *Bot) handlePendingInput(ctx context.Context, msg *tgbotapi.Message) {
 	}
 }
 
+// parses and appends keywords, then re-renders the menu
 func (b *Bot) addKeywords(ctx context.Context, positive bool, text string) {
 	toAdd := parseKeywordInput(text)
 	if len(toAdd) == 0 {

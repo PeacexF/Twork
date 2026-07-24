@@ -12,6 +12,7 @@ import (
 	"github.com/PeacexF/Twork/internal/models"
 )
 
+// routes chat: callbacks
 func (b *Bot) handleChatCallback(ctx context.Context, data string) {
 	switch {
 	case data == "chat:add":
@@ -50,6 +51,7 @@ func (b *Bot) handleChatCallback(ctx context.Context, data string) {
 	}
 }
 
+// renders the paginated chats list
 func (b *Bot) showChatsList(ctx context.Context, page int) {
 	chats := b.coll.ListResolved()
 	sort.Slice(chats, func(i, j int) bool { return strings.ToLower(chats[i].Title) < strings.ToLower(chats[j].Title) })
@@ -81,6 +83,7 @@ func (b *Bot) showChatsList(ctx context.Context, page int) {
 	b.editHome(ctx, text, tgbotapi.NewInlineKeyboardMarkup(rows...))
 }
 
+// shows the username/invite/folder add choices
 func (b *Bot) showAddChatOptions() {
 	kb := tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("👤 By username", "chat:add_username")),
@@ -91,6 +94,7 @@ func (b *Bot) showAddChatOptions() {
 	b.editHome(context.Background(), "How do you want to add a channel or group?", kb)
 }
 
+// renders one chat's status and controls
 func (b *Bot) showChatDetail(ctx context.Context, telegramID int64) {
 	c, err := b.store.GetChatByTelegramID(ctx, telegramID)
 	if err != nil || c == nil {
@@ -126,6 +130,7 @@ func (b *Bot) showChatDetail(ctx context.Context, telegramID int64) {
 	b.editHome(ctx, text, kb)
 }
 
+// asks for confirmation before removing a chat
 func (b *Bot) showRemoveConfirm(ctx context.Context, telegramID int64) {
 	c, err := b.store.GetChatByTelegramID(ctx, telegramID)
 	if err != nil || c == nil {
@@ -141,6 +146,7 @@ func (b *Bot) showRemoveConfirm(ctx context.Context, telegramID int64) {
 	b.editHome(ctx, fmt.Sprintf("Stop monitoring %q?\n\nAlready-indexed messages from it are kept -- this only stops watching for new ones.", c.Title), kb)
 }
 
+// shows the added chat, or an error
 func (b *Bot) handleAddChatResult(ctx context.Context, chat *models.Chat, err error) {
 	if err != nil {
 		b.editHome(ctx, "Couldn't add that chat:\n"+err.Error(), tgbotapi.NewInlineKeyboardMarkup(
@@ -151,6 +157,7 @@ func (b *Bot) handleAddChatResult(ctx context.Context, chat *models.Chat, err er
 	b.showChatDetail(ctx, chat.TelegramID)
 }
 
+// clamps page and returns its slice bounds
 func paginate(total, page, size int) (start, end int) {
 	if size <= 0 {
 		size = 1
@@ -176,6 +183,7 @@ func paginate(total, page, size int) (start, end int) {
 	return start, end
 }
 
+// builds a prev/position/next button row
 func navRow(callbackPrefix string, page, total, size int) []tgbotapi.InlineKeyboardButton {
 	if size <= 0 {
 		size = 1

@@ -57,6 +57,7 @@ type ChatConfig struct {
 	Paused   bool   `yaml:"paused"`
 }
 
+// reads, defaults, and validates config.yaml
 func Load(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -85,6 +86,7 @@ func Load(path string) (*Config, error) {
 	return &cfg, nil
 }
 
+// checks required fields
 func (c *Config) validate() error {
 	if c.Telegram.AppID == 0 {
 		return fmt.Errorf("telegram.app_id is required (get one at https://my.telegram.org/apps)")

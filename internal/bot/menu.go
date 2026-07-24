@@ -9,6 +9,7 @@ import (
 	"github.com/PeacexF/Twork/internal/storage"
 )
 
+// renders the stats dashboard text
 func homeDashboardText(ctx context.Context, store *storage.Store) string {
 	stats, err := store.GetStats(ctx)
 	if err != nil {
@@ -20,6 +21,7 @@ func homeDashboardText(ctx context.Context, store *storage.Store) string {
 	)
 }
 
+// builds the main menu keyboard
 func homeDashboardKeyboard() tgbotapi.InlineKeyboardMarkup {
 	return tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(

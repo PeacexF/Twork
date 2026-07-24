@@ -14,6 +14,7 @@ import (
 
 const maxSnippetLen = 800
 
+// routes list: callbacks (page/bookmark/export)
 func (b *Bot) handleCarouselCallback(ctx context.Context, data string) {
 	switch {
 	case strings.HasPrefix(data, "list:page:"):
@@ -31,12 +32,14 @@ func (b *Bot) handleCarouselCallback(ctx context.Context, data string) {
 	}
 }
 
+// switches to view v starting at page
 func (b *Bot) openCarousel(ctx context.Context, v viewKind, page int) {
 	b.sess.view = v
 	b.sess.page = page
 	b.renderCarousel(ctx)
 }
 
+// fetches the single row at the current page for the active view
 func (b *Bot) fetchCarouselItem(ctx context.Context) (*storage.MatchRow, int, error) {
 	var (
 		rows  []storage.MatchRow
@@ -62,6 +65,7 @@ func (b *Bot) fetchCarouselItem(ctx context.Context) (*storage.MatchRow, int, er
 	return &rows[0], total, nil
 }
 
+// renders the current carousel item and keyboard
 func (b *Bot) renderCarousel(ctx context.Context) {
 	item, total, err := b.fetchCarouselItem(ctx)
 	if err != nil {
@@ -93,6 +97,7 @@ func (b *Bot) renderCarousel(ctx context.Context) {
 	b.editHome(ctx, text, kb)
 }
 
+// returns the empty-state message for a view
 func viewEmptyText(v viewKind) string {
 	switch v {
 	case viewMatches:
@@ -106,6 +111,7 @@ func viewEmptyText(v viewKind) string {
 	}
 }
 
+// formats a match row into carousel display text
 func carouselText(v viewKind, item storage.MatchRow) string {
 	var title string
 	switch v {
@@ -133,6 +139,7 @@ func carouselText(v viewKind, item storage.MatchRow) string {
 	return text
 }
 
+// builds the prev/next/save/open/export keyboard
 func carouselKeyboard(item storage.MatchRow, page, total int) tgbotapi.InlineKeyboardMarkup {
 	saveLabel := "☆ Save"
 	if item.Bookmarked {
@@ -151,6 +158,7 @@ func carouselKeyboard(item storage.MatchRow, page, total int) tgbotapi.InlineKey
 	)
 }
 
+// keyboard with just a Back button
 func homeOnlyKeyboard() tgbotapi.InlineKeyboardMarkup {
 	return tgbotapi.NewInlineKeyboardMarkup(tgbotapi.NewInlineKeyboardRow(backButton("menu:home")))
 }

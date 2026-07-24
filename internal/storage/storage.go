@@ -15,6 +15,7 @@ type Store struct {
 	db *sql.DB
 }
 
+// opens the database and applies schema migrations
 func Open(path string) (*Store, error) {
 
 	dsn := fmt.Sprintf("file:%s?_fk=1&_journal=WAL&_busy_timeout=5000", path)
@@ -33,6 +34,7 @@ func Open(path string) (*Store, error) {
 	return s, nil
 }
 
+// closes the database
 func (s *Store) Close() error {
 	return s.db.Close()
 }
@@ -109,6 +111,7 @@ CREATE TABLE IF NOT EXISTS message_status (
 );
 `
 
+// applies the schema
 func (s *Store) migrate() error {
 	if _, err := s.db.Exec(schema); err != nil {
 		return err
@@ -117,6 +120,7 @@ func (s *Store) migrate() error {
 	return err
 }
 
+// returns the highest indexed message ID for a chat
 func (s *Store) MaxTelegramMessageID(ctx context.Context, telegramChatID int64) (int, error) {
 	var max sql.NullInt64
 	err := s.db.QueryRowContext(ctx, `
@@ -131,6 +135,7 @@ func (s *Store) MaxTelegramMessageID(ctx context.Context, telegramChatID int64) 
 	return int(max.Int64), nil
 }
 
+// checks for exact-text duplicates
 func (s *Store) IsDuplicate(ctx context.Context, text string) (bool, error) {
 	var n int
 	err := s.db.QueryRowContext(ctx, `SELECT COUNT(1) FROM messages WHERE text = ?`, text).Scan(&n)
@@ -140,6 +145,7 @@ func (s *Store) IsDuplicate(ctx context.Context, text string) (bool, error) {
 	return n > 0, nil
 }
 
+// inserts a message, idempotent on (chat, telegram message id)
 func (s *Store) InsertMessage(ctx context.Context, m models.Message) (int64, error) {
 	res, err := s.db.ExecContext(ctx, `
 		INSERT INTO messages (telegram_message_id, chat_id, chat_title, sender_id, sender_name, ts, text, link, forward_from_title, edit_ts)
@@ -165,6 +171,7 @@ func (s *Store) InsertMessage(ctx context.Context, m models.Message) (int64, err
 	return existing, nil
 }
 
+// stores or updates a message's match record
 func (s *Store) RecordMatch(ctx context.Context, messageID int64, keywordsJSON string) error {
 	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO matches (message_id, matched_keywords) VALUES (?, ?)
@@ -181,6 +188,7 @@ type SearchResult struct {
 	Timestamp time.Time
 }
 
+// runs an FTS5 query
 func (s *Store) Search(ctx context.Context, query string, limit int) ([]SearchResult, error) {
 	if limit <= 0 {
 		limit = 50
@@ -209,6 +217,7 @@ func (s *Store) Search(ctx context.Context, query string, limit int) ([]SearchRe
 	return out, rows.Err()
 }
 
+// inserts or updates a chat's metadata
 func (s *Store) UpsertChat(ctx context.Context, c models.Chat) error {
 	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO chats (telegram_id, access_hash, kind, title, username, tag, paused)
@@ -232,6 +241,7 @@ type Stats struct {
 	Ignored         int
 }
 
+// computes the dashboard counters
 func (s *Store) GetStats(ctx context.Context) (Stats, error) {
 	var st Stats
 	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(1) FROM chats WHERE paused = 0`).Scan(&st.ChatsMonitored); err != nil {
@@ -254,6 +264,7 @@ func (s *Store) GetStats(ctx context.Context) (Stats, error) {
 	return st, nil
 }
 
+// converts bool to 0/1
 func boolToInt(b bool) int {
 	if b {
 		return 1

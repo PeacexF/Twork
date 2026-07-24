@@ -22,6 +22,7 @@ const (
 	settingBotOwnerID           = "bot.owner_id"
 )
 
+// reads one raw setting value
 func (s *Store) GetSetting(ctx context.Context, key string) (string, bool, error) {
 	var v string
 	err := s.db.QueryRowContext(ctx, `SELECT value FROM settings WHERE key = ?`, key).Scan(&v)
@@ -34,6 +35,7 @@ func (s *Store) GetSetting(ctx context.Context, key string) (string, bool, error
 	return v, true, nil
 }
 
+// writes one raw setting value
 func (s *Store) SetSetting(ctx context.Context, key, value string) error {
 	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO settings (key, value) VALUES (?, ?)
@@ -48,6 +50,7 @@ type Keywords struct {
 	Mode     string
 }
 
+// loads persisted keyword configuration
 func (s *Store) GetKeywords(ctx context.Context) (kw Keywords, ok bool, err error) {
 	pos, hasPos, err := s.GetSetting(ctx, settingKeywordsPositive)
 	if err != nil {
@@ -76,6 +79,7 @@ func (s *Store) GetKeywords(ctx context.Context) (kw Keywords, ok bool, err erro
 	return kw, true, nil
 }
 
+// persists keyword configuration
 func (s *Store) SetKeywords(ctx context.Context, kw Keywords) error {
 	posJSON, err := json.Marshal(kw.Positive)
 	if err != nil {
@@ -94,6 +98,7 @@ func (s *Store) SetKeywords(ctx context.Context, kw Keywords) error {
 	return s.SetSetting(ctx, settingKeywordsMode, kw.Mode)
 }
 
+// reads the notifications toggle
 func (s *Store) GetNotificationsEnabled(ctx context.Context) (enabled bool, ok bool, err error) {
 	v, ok, err := s.GetSetting(ctx, settingNotificationsEnabled)
 	if err != nil || !ok {
@@ -102,6 +107,7 @@ func (s *Store) GetNotificationsEnabled(ctx context.Context) (enabled bool, ok b
 	return v == "1", true, nil
 }
 
+// writes the notifications toggle
 func (s *Store) SetNotificationsEnabled(ctx context.Context, enabled bool) error {
 	v := "0"
 	if enabled {
@@ -110,6 +116,7 @@ func (s *Store) SetNotificationsEnabled(ctx context.Context, enabled bool) error
 	return s.SetSetting(ctx, settingNotificationsEnabled, v)
 }
 
+// reads the claimed owner ID
 func (s *Store) GetBotOwnerID(ctx context.Context) (int64, bool, error) {
 	v, ok, err := s.GetSetting(ctx, settingBotOwnerID)
 	if err != nil || !ok {
@@ -122,6 +129,7 @@ func (s *Store) GetBotOwnerID(ctx context.Context) (int64, bool, error) {
 	return id, true, nil
 }
 
+// persists the claimed owner ID
 func (s *Store) SetBotOwnerID(ctx context.Context, id int64) error {
 	return s.SetSetting(ctx, settingBotOwnerID, fmt.Sprintf("%d", id))
 }

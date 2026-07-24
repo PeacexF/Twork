@@ -44,6 +44,7 @@ type resolvedChat struct {
 	InputPeer tg.InputPeerClass
 }
 
+// builds a Collector
 func New(cfg config.TelegramConfig, store *storage.Store, seed []config.ChatConfig, onMsg Handler) *Collector {
 	return &Collector{
 		appID:    cfg.AppID,
@@ -57,6 +58,7 @@ func New(cfg config.TelegramConfig, store *storage.Store, seed []config.ChatConf
 	}
 }
 
+// authenticates, resolves chats, backfills, then streams live updates
 func (c *Collector) Run(ctx context.Context) error {
 	client := telegram.NewClient(c.appID, c.appHash, telegram.Options{
 		SessionStorage: &session.FileStorage{Path: c.session},
@@ -95,6 +97,7 @@ func (c *Collector) Run(ctx context.Context) error {
 	})
 }
 
+// runs interactive login only if the session isn't already authorized
 func (c *Collector) ensureAuthorized(ctx context.Context) error {
 	status, err := c.client.Auth().Status(ctx)
 	if err != nil {
@@ -123,6 +126,7 @@ func (c *Collector) ensureAuthorized(ctx context.Context) error {
 	return flow.Run(ctx, c.client.Auth())
 }
 
+// reads a trimmed line from stdin
 func readLine() (string, error) {
 	line, err := bufio.NewReader(os.Stdin).ReadString('\n')
 	if err != nil {
@@ -137,20 +141,30 @@ type promptAuth struct {
 	password func(ctx context.Context) (string, error)
 }
 
+// returns the configured phone number
 func (p promptAuth) Phone(ctx context.Context) (string, error) { return p.phone, nil }
+
+// delegates to the password prompt
 func (p promptAuth) Password(ctx context.Context) (string, error) {
 	return p.password(ctx)
 }
+
+// delegates to the code prompt
 func (p promptAuth) Code(ctx context.Context, sentCode *tg.AuthSentCode) (string, error) {
 	return p.code.Code(ctx, sentCode)
 }
+
+// accepts ToS without prompting
 func (p promptAuth) AcceptTermsOfService(ctx context.Context, tos tg.HelpTermsOfService) error {
 	return nil
 }
+
+// rejects sign-up; the account must already exist
 func (p promptAuth) SignUp(ctx context.Context) (auth.UserInfo, error) {
 	return auth.UserInfo{}, fmt.Errorf("account sign-up is not supported by twork; the phone number must already have a Telegram account")
 }
 
+// loads monitored chats from storage, seeding from config on first run
 func (c *Collector) resolveChats(ctx context.Context) error {
 	stored, err := c.store.ListChats(ctx)
 	if err != nil {
@@ -234,6 +248,7 @@ func (c *Collector) resolveChats(ctx context.Context) error {
 	return nil
 }
 
+// builds the InputPeer for a stored chat from its access hash
 func inputPeerFor(chat models.Chat) tg.InputPeerClass {
 	if chat.AccessHash != 0 {
 		return &tg.InputPeerChannel{ChannelID: chat.TelegramID, AccessHash: chat.AccessHash}
@@ -247,6 +262,7 @@ type dialogMsgRef struct {
 	inputPeer tg.InputPeerClass
 }
 
+// normalizes a dialogs response into chats and pagination refs
 func extractDialogs(resp tg.MessagesDialogsClass) (dialogs []tg.DialogClass, chats []tg.ChatClass, msgs []dialogMsgRef, done bool) {
 	var rawMsgs []tg.MessageClass
 	switch d := resp.(type) {
@@ -268,6 +284,7 @@ func extractDialogs(resp tg.MessagesDialogsClass) (dialogs []tg.DialogClass, cha
 	return
 }
 
+// converts a raw chat into a resolvedChat, or nil if unmonitorable
 func chatToResolved(ch tg.ChatClass) *resolvedChat {
 	switch v := ch.(type) {
 	case *tg.Channel:
@@ -305,6 +322,7 @@ func chatToResolved(ch tg.ChatClass) *resolvedChat {
 	}
 }
 
+// converts a Peer into the matching InputPeer
 func peerToInput(p tg.PeerClass) tg.InputPeerClass {
 	switch v := p.(type) {
 	case *tg.PeerChannel:
@@ -318,6 +336,7 @@ func peerToInput(p tg.PeerClass) tg.InputPeerClass {
 	}
 }
 
+// fetches history newer than what's already stored
 func (c *Collector) backfill(ctx context.Context, rc *resolvedChat) error {
 	minID, err := c.store.MaxTelegramMessageID(ctx, rc.TelegramID)
 	if err != nil {
@@ -366,6 +385,7 @@ func (c *Collector) backfill(ctx context.Context, rc *resolvedChat) error {
 	}
 }
 
+// extracts the message list from a history response
 func extractMessages(resp tg.MessagesMessagesClass) []tg.MessageClass {
 	switch m := resp.(type) {
 	case *tg.MessagesMessages:
@@ -379,6 +399,7 @@ func extractMessages(resp tg.MessagesMessagesClass) []tg.MessageClass {
 	}
 }
 
+// forwards live messages belonging to monitored chats
 func (c *Collector) handleUpdates(ctx context.Context, u tg.UpdatesClass) error {
 	var updates []tg.UpdateClass
 	switch v := u.(type) {
@@ -420,6 +441,7 @@ func (c *Collector) handleUpdates(ctx context.Context, u tg.UpdatesClass) error 
 	return nil
 }
 
+// extracts the numeric chat ID from a Peer
 func peerChatID(p tg.PeerClass) int64 {
 	switch v := p.(type) {
 	case *tg.PeerChannel:
@@ -433,6 +455,7 @@ func peerChatID(p tg.PeerClass) int64 {
 	}
 }
 
+// converts a raw Telegram message into Twork's message model
 func normalizeMessage(m *tg.Message, rc *resolvedChat) models.Message {
 	msg := models.Message{
 		TelegramMessageID: m.ID,
@@ -459,6 +482,7 @@ func normalizeMessage(m *tg.Message, rc *resolvedChat) models.Message {
 	return msg
 }
 
+// builds a t.me link to the original message
 func messageLink(rc *resolvedChat, msgID int) string {
 	if rc.Username != "" {
 		return fmt.Sprintf("https://t.me/%s/%d", rc.Username, msgID)
@@ -466,6 +490,7 @@ func messageLink(rc *resolvedChat, msgID int) string {
 	return fmt.Sprintf("https://t.me/c/%d/%d", rc.TelegramID, msgID)
 }
 
+// splits a chat identifier into username or numeric ID
 func ParseChatIdentifier(s string) (username string, id int64) {
 	s = strings.TrimSpace(s)
 	if n, err := strconv.ParseInt(s, 10, 64); err == nil {

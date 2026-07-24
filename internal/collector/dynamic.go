@@ -11,6 +11,7 @@ import (
 	"github.com/PeacexF/Twork/internal/models"
 )
 
+// resolves and starts monitoring a public chat by username
 func (c *Collector) AddByUsername(ctx context.Context, username string) (*models.Chat, error) {
 	username = strings.TrimPrefix(strings.TrimSpace(username), "@")
 	if username == "" {
@@ -36,6 +37,7 @@ func (c *Collector) AddByUsername(ctx context.Context, username string) (*models
 	return c.addResolved(ctx, rc)
 }
 
+// joins (if needed) and monitors a private chat via invite link
 func (c *Collector) AddByInviteLink(ctx context.Context, link string) (*models.Chat, error) {
 	hash := parseInviteHash(link)
 	if hash == "" {
@@ -74,6 +76,7 @@ func (c *Collector) AddByInviteLink(ctx context.Context, link string) (*models.C
 	return c.addResolved(ctx, rc)
 }
 
+// joins and monitors every chat in a shared folder link
 func (c *Collector) AddFolder(ctx context.Context, addlistLink string) ([]*models.Chat, error) {
 	slug := parseChatlistSlug(addlistLink)
 	if slug == "" {
@@ -139,6 +142,7 @@ func (c *Collector) AddFolder(ctx context.Context, addlistLink string) ([]*model
 	return added, nil
 }
 
+// persists a resolved chat and kicks off its backfill
 func (c *Collector) addResolved(ctx context.Context, rc *resolvedChat) (*models.Chat, error) {
 	if err := c.store.UpsertChat(ctx, rc.Chat); err != nil {
 		return nil, fmt.Errorf("saving chat: %w", err)
@@ -154,6 +158,7 @@ func (c *Collector) addResolved(ctx context.Context, rc *resolvedChat) (*models.
 	return &chat, nil
 }
 
+// runs backfill in the background using the collector's run context
 func (c *Collector) backfillAsync(rc *resolvedChat) {
 	if c.runCtx == nil {
 		return
@@ -165,6 +170,7 @@ func (c *Collector) backfillAsync(rc *resolvedChat) {
 	}()
 }
 
+// stops delivering new messages for a chat
 func (c *Collector) Pause(ctx context.Context, telegramID int64) error {
 	if err := c.store.SetChatPaused(ctx, telegramID, true); err != nil {
 		return err
@@ -177,6 +183,7 @@ func (c *Collector) Pause(ctx context.Context, telegramID int64) error {
 	return nil
 }
 
+// re-enables a paused chat and re-triggers backfill
 func (c *Collector) Resume(ctx context.Context, telegramID int64) error {
 	if err := c.store.SetChatPaused(ctx, telegramID, false); err != nil {
 		return err
@@ -193,6 +200,7 @@ func (c *Collector) Resume(ctx context.Context, telegramID int64) error {
 	return nil
 }
 
+// stops monitoring a chat without deleting its history
 func (c *Collector) Remove(ctx context.Context, telegramID int64) error {
 	if err := c.store.RemoveChat(ctx, telegramID); err != nil {
 		return err
@@ -203,6 +211,7 @@ func (c *Collector) Remove(ctx context.Context, telegramID int64) error {
 	return nil
 }
 
+// snapshots the currently monitored chats
 func (c *Collector) ListResolved() []models.Chat {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -213,6 +222,7 @@ func (c *Collector) ListResolved() []models.Chat {
 	return out
 }
 
+// extracts the chat list from an Updates response
 func chatsFromUpdatesClass(u tg.UpdatesClass) []tg.ChatClass {
 	switch v := u.(type) {
 	case *tg.Updates:
@@ -224,6 +234,7 @@ func chatsFromUpdatesClass(u tg.UpdatesClass) []tg.ChatClass {
 	}
 }
 
+// extracts the hash from a private invite link
 func parseInviteHash(link string) string {
 	link = strings.TrimSpace(link)
 	link = strings.TrimPrefix(link, "https://")
@@ -242,6 +253,7 @@ func parseInviteHash(link string) string {
 	return ""
 }
 
+// extracts the slug from a folder invite link
 func parseChatlistSlug(link string) string {
 	link = strings.TrimSpace(link)
 	link = strings.TrimPrefix(link, "https://")
