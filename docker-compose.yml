@@ -1,0 +1,19 @@
+services:
+  twork:
+    build: .
+    restart: unless-stopped
+    volumes:
+      # config.yaml must set database.sqlite and telegram.session to paths under ./data
+      - ./config.yaml:/app/config.yaml:ro
+      - ./data:/app/data
+
+  # Only needed if source.kind is "rsshub" in config.yaml.
+  rsshub:
+    image: diygod/rsshub:latest
+    restart: unless-stopped
+    profiles: ["rsshub"]
+    ports:
+      - "1200:1200"
+    environment:
+      NODE_ENV: production
+      CACHE_EXPIRE: "300"
