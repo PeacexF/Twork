@@ -15,11 +15,13 @@ CREATE TABLE IF NOT EXISTS settings (
 `
 
 const (
-	settingKeywordsPositive     = "keywords.positive"
-	settingKeywordsNegative     = "keywords.negative"
-	settingKeywordsMode         = "keywords.mode"
-	settingNotificationsEnabled = "notifications.enabled"
-	settingBotOwnerID           = "bot.owner_id"
+	settingKeywordsPositive       = "keywords.positive"
+	settingKeywordsNegative       = "keywords.negative"
+	settingKeywordsMode           = "keywords.mode"
+	settingKeywordsPositiveGroups = "keywords.positive_groups"
+	settingKeywordsNegativeGroups = "keywords.negative_groups"
+	settingNotificationsEnabled   = "notifications.enabled"
+	settingBotOwnerID             = "bot.owner_id"
 )
 
 // reads one raw setting value
@@ -44,55 +46,107 @@ func (s *Store) SetSetting(ctx context.Context, key, value string) error {
 	return err
 }
 
-type Keywords struct {
-	Positive []string
-	Negative []string
-	Mode     string
+// a named set of aliases with an optional per-group matching mode
+type KeywordGroup struct {
+	Name    string   `json:"name"`
+	Aliases []string `json:"aliases"`
+	Mode    string   `json:"mode,omitempty"`
 }
 
-// loads persisted keyword configuration
+type Keywords struct {
+	PositiveGroups []KeywordGroup
+	NegativeGroups []KeywordGroup
+	Mode           string
+}
+
+// loads persisted keyword groups, migrating legacy flat keyword lists if present
 func (s *Store) GetKeywords(ctx context.Context) (kw Keywords, ok bool, err error) {
-	pos, hasPos, err := s.GetSetting(ctx, settingKeywordsPositive)
+	mode, _, err := s.GetSetting(ctx, settingKeywordsMode)
+	if err != nil {
+		return kw, false, err
+	}
+	kw.Mode = mode
+
+	posGroups, hasPosGroups, err := s.getGroups(ctx, settingKeywordsPositiveGroups)
+	if err != nil {
+		return kw, false, err
+	}
+	if hasPosGroups {
+		negGroups, _, err := s.getGroups(ctx, settingKeywordsNegativeGroups)
+		if err != nil {
+			return kw, false, err
+		}
+		kw.PositiveGroups = posGroups
+		kw.NegativeGroups = negGroups
+		return kw, true, nil
+	}
+
+	// No group keys yet: fall back to legacy flat lists (from an older
+	// version) and migrate each keyword into a single-alias group.
+	pos, hasPos, err := s.getFlatAsGroups(ctx, settingKeywordsPositive)
 	if err != nil {
 		return kw, false, err
 	}
 	if !hasPos {
 		return kw, false, nil
 	}
-	if err := json.Unmarshal([]byte(pos), &kw.Positive); err != nil {
-		return kw, false, fmt.Errorf("decoding stored positive keywords: %w", err)
-	}
-	neg, _, err := s.GetSetting(ctx, settingKeywordsNegative)
+	neg, _, err := s.getFlatAsGroups(ctx, settingKeywordsNegative)
 	if err != nil {
 		return kw, false, err
 	}
-	if neg != "" {
-		if err := json.Unmarshal([]byte(neg), &kw.Negative); err != nil {
-			return kw, false, fmt.Errorf("decoding stored negative keywords: %w", err)
-		}
-	}
-	mode, _, err := s.GetSetting(ctx, settingKeywordsMode)
-	if err != nil {
-		return kw, false, err
-	}
-	kw.Mode = mode
+	kw.PositiveGroups = pos
+	kw.NegativeGroups = neg
 	return kw, true, nil
 }
 
-// persists keyword configuration
+// reads and decodes a JSON group list from one setting key
+func (s *Store) getGroups(ctx context.Context, key string) ([]KeywordGroup, bool, error) {
+	raw, ok, err := s.GetSetting(ctx, key)
+	if err != nil || !ok {
+		return nil, ok, err
+	}
+	var groups []KeywordGroup
+	if raw != "" {
+		if err := json.Unmarshal([]byte(raw), &groups); err != nil {
+			return nil, false, fmt.Errorf("decoding stored groups %q: %w", key, err)
+		}
+	}
+	return groups, true, nil
+}
+
+// reads a legacy flat JSON string list and converts each entry to a single-alias group
+func (s *Store) getFlatAsGroups(ctx context.Context, key string) ([]KeywordGroup, bool, error) {
+	raw, ok, err := s.GetSetting(ctx, key)
+	if err != nil || !ok {
+		return nil, ok, err
+	}
+	var words []string
+	if raw != "" {
+		if err := json.Unmarshal([]byte(raw), &words); err != nil {
+			return nil, false, fmt.Errorf("decoding legacy keywords %q: %w", key, err)
+		}
+	}
+	groups := make([]KeywordGroup, 0, len(words))
+	for _, w := range words {
+		groups = append(groups, KeywordGroup{Name: w, Aliases: []string{w}})
+	}
+	return groups, true, nil
+}
+
+// persists keyword groups
 func (s *Store) SetKeywords(ctx context.Context, kw Keywords) error {
-	posJSON, err := json.Marshal(kw.Positive)
+	posJSON, err := json.Marshal(kw.PositiveGroups)
 	if err != nil {
 		return err
 	}
-	negJSON, err := json.Marshal(kw.Negative)
+	negJSON, err := json.Marshal(kw.NegativeGroups)
 	if err != nil {
 		return err
 	}
-	if err := s.SetSetting(ctx, settingKeywordsPositive, string(posJSON)); err != nil {
+	if err := s.SetSetting(ctx, settingKeywordsPositiveGroups, string(posJSON)); err != nil {
 		return err
 	}
-	if err := s.SetSetting(ctx, settingKeywordsNegative, string(negJSON)); err != nil {
+	if err := s.SetSetting(ctx, settingKeywordsNegativeGroups, string(negJSON)); err != nil {
 		return err
 	}
 	return s.SetSetting(ctx, settingKeywordsMode, kw.Mode)

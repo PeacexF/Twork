@@ -12,14 +12,14 @@ const (
 type pendingInput string
 
 const (
-	inputNone          pendingInput = ""
-	inputAddChat       pendingInput = "add_chat"
-	inputFindChats     pendingInput = "find_chats"
-	inputSearchQuery   pendingInput = "search_query"
-	inputAddPositiveKw pendingInput = "add_positive_kw"
-	inputAddNegativeKw pendingInput = "add_negative_kw"
-	inputEditTag       pendingInput = "edit_tag"
-	inputJumpToPage    pendingInput = "jump_to_page"
+	inputNone        pendingInput = ""
+	inputAddChat     pendingInput = "add_chat"
+	inputFindChats   pendingInput = "find_chats"
+	inputSearchQuery pendingInput = "search_query"
+	inputNewGroup    pendingInput = "new_group"
+	inputAddAlias    pendingInput = "add_alias"
+	inputEditTag     pendingInput = "edit_tag"
+	inputJumpToPage  pendingInput = "jump_to_page"
 )
 
 type session struct {
@@ -30,7 +30,9 @@ type session struct {
 	page        int
 	searchQuery string
 
-	pending       pendingInput
-	promptMsgID   int
-	editingTagFor int64
+	pending              pendingInput
+	promptMsgID          int
+	editingTagFor        int64
+	editingGroupToken    string // group token being edited (add alias)
+	editingGroupPositive bool   // polarity for a group being created
 }

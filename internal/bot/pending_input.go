@@ -24,31 +24,14 @@ func (b *Bot) handlePendingInput(ctx context.Context, msg *tgbotapi.Message) {
 		b.sess.searchQuery = text
 		b.openCarousel(ctx, viewSearch, 0)
 
-	case inputAddPositiveKw:
-		b.addKeywords(ctx, true, text)
+	case inputNewGroup:
+		b.createGroup(ctx, text)
 
-	case inputAddNegativeKw:
-		b.addKeywords(ctx, false, text)
+	case inputAddAlias:
+		b.addAliasesToPending(ctx, text)
 
 	case inputEditTag:
 		_ = b.store.SetChatTag(ctx, b.sess.editingTagFor, text)
 		b.showChatDetail(ctx, b.sess.editingTagFor)
 	}
-}
-
-// parses and appends keywords, then re-renders the menu
-func (b *Bot) addKeywords(ctx context.Context, positive bool, text string) {
-	toAdd := parseKeywordInput(text)
-	if len(toAdd) == 0 {
-		b.showKeywordsMenu(ctx)
-		return
-	}
-	kw := b.loadKeywords(ctx)
-	if positive {
-		kw.Positive = append(kw.Positive, toAdd...)
-	} else {
-		kw.Negative = append(kw.Negative, toAdd...)
-	}
-	b.saveKeywords(ctx, kw)
-	b.showKeywordsMenu(ctx)
 }

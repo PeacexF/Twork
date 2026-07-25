@@ -7,6 +7,7 @@ import (
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 
+	"github.com/PeacexF/Twork/internal/config"
 	"github.com/PeacexF/Twork/internal/discovery"
 	"github.com/PeacexF/Twork/internal/matcher"
 	"github.com/PeacexF/Twork/internal/models"
@@ -14,6 +15,20 @@ import (
 )
 
 const pageSize = 8
+
+// builds a Matcher from stored keyword groups
+func matcherFromStoredKeywords(kw storage.Keywords) *matcher.Matcher {
+	return matcher.NewFromGroups(kw.Mode, storedGroupsToConfig(kw.PositiveGroups), storedGroupsToConfig(kw.NegativeGroups))
+}
+
+// converts storage keyword groups to the config type the matcher consumes
+func storedGroupsToConfig(in []storage.KeywordGroup) []config.KeywordGroup {
+	out := make([]config.KeywordGroup, len(in))
+	for i, g := range in {
+		out[i] = config.KeywordGroup(g)
+	}
+	return out
+}
 
 // backs chat monitoring; the MTProto collector and RSSHub poller both satisfy this
 type ChatSource interface {

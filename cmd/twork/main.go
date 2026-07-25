@@ -117,16 +117,44 @@ func bootstrapMatcher(ctx context.Context, store *storage.Store, cfg *config.Con
 		return nil, err
 	}
 	if !ok {
-		kw = storage.Keywords{Positive: cfg.Matching.Positive, Negative: cfg.Matching.Negative, Mode: cfg.Matching.Mode}
+		kw = seedKeywordsFromConfig(cfg.Matching)
 		if err := store.SetKeywords(ctx, kw); err != nil {
 			return nil, err
 		}
 	}
-	m, err := matcher.New(config.MatchingConfig{Positive: kw.Positive, Negative: kw.Negative, Mode: kw.Mode})
-	if err != nil {
-		return nil, err
+	return matcher.NewStore(matcherFromStored(kw)), nil
+}
+
+// builds the initial stored keyword set from config, folding flat lists into single-alias groups
+func seedKeywordsFromConfig(m config.MatchingConfig) storage.Keywords {
+	kw := storage.Keywords{Mode: m.Mode}
+	for _, w := range m.Positive {
+		kw.PositiveGroups = append(kw.PositiveGroups, storage.KeywordGroup{Name: w, Aliases: []string{w}})
 	}
-	return matcher.NewStore(m), nil
+	for _, g := range m.PositiveGroups {
+		kw.PositiveGroups = append(kw.PositiveGroups, storage.KeywordGroup(g))
+	}
+	for _, w := range m.Negative {
+		kw.NegativeGroups = append(kw.NegativeGroups, storage.KeywordGroup{Name: w, Aliases: []string{w}})
+	}
+	for _, g := range m.NegativeGroups {
+		kw.NegativeGroups = append(kw.NegativeGroups, storage.KeywordGroup(g))
+	}
+	return kw
+}
+
+// builds a Matcher from stored keyword groups
+func matcherFromStored(kw storage.Keywords) *matcher.Matcher {
+	return matcher.NewFromGroups(kw.Mode, storedToConfigGroups(kw.PositiveGroups), storedToConfigGroups(kw.NegativeGroups))
+}
+
+// converts storage keyword groups to the config type the matcher consumes
+func storedToConfigGroups(in []storage.KeywordGroup) []config.KeywordGroup {
+	out := make([]config.KeywordGroup, len(in))
+	for i, g := range in {
+		out[i] = config.KeywordGroup(g)
+	}
+	return out
 }
 
 // seeds the notifications toggle from config.yaml on first run
