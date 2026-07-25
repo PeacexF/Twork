@@ -7,6 +7,7 @@ import (
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 
+	"github.com/PeacexF/Twork/internal/discovery"
 	"github.com/PeacexF/Twork/internal/matcher"
 	"github.com/PeacexF/Twork/internal/models"
 	"github.com/PeacexF/Twork/internal/storage"
@@ -31,6 +32,7 @@ type Bot struct {
 	store      *storage.Store
 	matchStore *matcher.Store
 	source     ChatSource
+	searcher   discovery.Searcher // nil if channel discovery isn't configured
 
 	configuredOwnerID int64
 	ownerID           int64
@@ -38,7 +40,7 @@ type Bot struct {
 }
 
 // builds a Bot around the given token and dependencies
-func New(token string, ownerID int64, store *storage.Store, matchStore *matcher.Store, source ChatSource) (*Bot, error) {
+func New(token string, ownerID int64, store *storage.Store, matchStore *matcher.Store, source ChatSource, searcher discovery.Searcher) (*Bot, error) {
 	api, err := tgbotapi.NewBotAPI(token)
 	if err != nil {
 		return nil, fmt.Errorf("connecting to Telegram Bot API: %w", err)
@@ -48,6 +50,7 @@ func New(token string, ownerID int64, store *storage.Store, matchStore *matcher.
 		store:             store,
 		matchStore:        matchStore,
 		source:            source,
+		searcher:          searcher,
 		configuredOwnerID: ownerID,
 		sess:              &session{},
 	}, nil

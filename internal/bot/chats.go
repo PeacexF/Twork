@@ -16,13 +16,9 @@ import (
 func (b *Bot) handleChatCallback(ctx context.Context, data string) {
 	switch {
 	case data == "chat:add":
-		b.showAddChatOptions()
-	case data == "chat:add_username":
-		b.promptFor(ctx, inputAddUsername, "Send the channel/group @username (or a t.me/username link):")
-	case data == "chat:add_invite":
-		b.promptFor(ctx, inputAddInvite, "Send the private invite link (t.me/+... or t.me/joinchat/...):\n\nNote: this will join the account to the chat.")
-	case data == "chat:add_folder":
-		b.promptFor(ctx, inputAddFolder, "Send the shared folder link (t.me/addlist/...):\n\nNote: this will join every chat in the folder.")
+		b.promptFor(ctx, inputAddChat, "Send a channel @username or any t.me link (channel, invite, or folder) — I'll figure out the rest.")
+	case data == "chat:find":
+		b.promptFor(ctx, inputFindChats, "Send a keyword to search for public channels (e.g. \"golang jobs\"):")
 	case strings.HasPrefix(data, "chat:page:"):
 		n, _ := strconv.Atoi(strings.TrimPrefix(data, "chat:page:"))
 		b.showChatsList(ctx, n)
@@ -44,6 +40,8 @@ func (b *Bot) handleChatCallback(ctx context.Context, data string) {
 		id, _ := strconv.ParseInt(strings.TrimPrefix(data, "chat:remove:"), 10, 64)
 		_ = b.source.Remove(ctx, id)
 		b.showChatsList(ctx, 0)
+	case strings.HasPrefix(data, "chat:addfound:"):
+		b.addFoundChannel(ctx, strings.TrimPrefix(data, "chat:addfound:"))
 	case strings.HasPrefix(data, "chat:tag:"):
 		id, _ := strconv.ParseInt(strings.TrimPrefix(data, "chat:tag:"), 10, 64)
 		b.sess.editingTagFor = id
@@ -72,7 +70,10 @@ func (b *Bot) showChatsList(ctx context.Context, page int) {
 			tgbotapi.NewInlineKeyboardButtonData(label, fmt.Sprintf("chat:view:%d", c.TelegramID)),
 		))
 	}
-	rows = append(rows, tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("➕ Add channel", "chat:add")))
+	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData("➕ Add", "chat:add"),
+		tgbotapi.NewInlineKeyboardButtonData("🔎 Find channels", "chat:find"),
+	))
 	rows = append(rows, navRow("chat:page:", page, len(chats), pageSize))
 	rows = append(rows, tgbotapi.NewInlineKeyboardRow(backButton("menu:home")))
 
@@ -84,14 +85,90 @@ func (b *Bot) showChatsList(ctx context.Context, page int) {
 }
 
 // shows the username/invite/folder add choices
-func (b *Bot) showAddChatOptions() {
-	kb := tgbotapi.NewInlineKeyboardMarkup(
-		tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("👤 By username", "chat:add_username")),
-		tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("🔗 By invite link", "chat:add_invite")),
-		tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("📁 By folder link", "chat:add_folder")),
+// normalizes the pasted input and routes it to the right source method
+func (b *Bot) addChatFromInput(ctx context.Context, raw string) {
+	parsed, err := parseChatInput(raw)
+	if err != nil {
+		b.showAddError(ctx, err.Error())
+		return
+	}
+	switch parsed.kind {
+	case inputKindUsername:
+		chat, err := b.source.AddByUsername(ctx, parsed.value)
+		b.handleAddChatResult(ctx, chat, err)
+	case inputKindInvite:
+		chat, err := b.source.AddByInviteLink(ctx, parsed.value)
+		b.handleAddChatResult(ctx, chat, err)
+	case inputKindFolder:
+		chats, err := b.source.AddFolder(ctx, parsed.value)
+		if err != nil || len(chats) == 0 {
+			b.handleAddChatResult(ctx, nil, err)
+			return
+		}
+		b.showChatsList(ctx, 0)
+	default:
+		b.showAddError(ctx, "couldn't tell what that was — send a @username or a t.me link")
+	}
+}
+
+// searches for public channels by keyword and shows tappable results to add
+func (b *Bot) findChannels(ctx context.Context, query string) {
+	if b.searcher == nil {
+		b.editHome(ctx, "🔎 Channel search isn't set up.\n\nAdd a TGStat API token under discovery.tgstat_token in config.yaml to enable it. You can still add channels directly with ➕ Add.", tgbotapi.NewInlineKeyboardMarkup(
+			tgbotapi.NewInlineKeyboardRow(backButton("chat:page:0")),
+		))
+		return
+	}
+
+	results, err := b.searcher.Search(ctx, query)
+	if err != nil {
+		b.showAddError(ctx, "channel search failed: "+err.Error())
+		return
+	}
+	if len(results) == 0 {
+		b.editHome(ctx, fmt.Sprintf("No public channels found for %q.", query), tgbotapi.NewInlineKeyboardMarkup(
+			tgbotapi.NewInlineKeyboardRow(backButton("chat:page:0")),
+		))
+		return
+	}
+
+	var rows [][]tgbotapi.InlineKeyboardButton
+	for _, r := range results {
+		label := r.Title
+		if r.Subscribers > 0 {
+			label += fmt.Sprintf(" · %s", humanCount(r.Subscribers))
+		}
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData(label, "chat:addfound:"+r.Username),
+		))
+	}
+	rows = append(rows, tgbotapi.NewInlineKeyboardRow(backButton("chat:page:0")))
+	b.editHome(ctx, fmt.Sprintf("🔎 Results for %q — tap one to monitor it:", query), tgbotapi.NewInlineKeyboardMarkup(rows...))
+}
+
+// adds a channel chosen from search results by its username
+func (b *Bot) addFoundChannel(ctx context.Context, username string) {
+	chat, err := b.source.AddByUsername(ctx, username)
+	b.handleAddChatResult(ctx, chat, err)
+}
+
+// formats a subscriber count like 12500 -> "12.5k"
+func humanCount(n int) string {
+	switch {
+	case n >= 1_000_000:
+		return fmt.Sprintf("%.1fM", float64(n)/1_000_000)
+	case n >= 1_000:
+		return fmt.Sprintf("%.1fk", float64(n)/1_000)
+	default:
+		return fmt.Sprintf("%d", n)
+	}
+}
+
+// shows an add-chat error with a Back button
+func (b *Bot) showAddError(ctx context.Context, msg string) {
+	b.editHome(ctx, "⚠️ "+msg, tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(backButton("chat:page:0")),
-	)
-	b.editHome(context.Background(), "How do you want to add a channel or group?", kb)
+	))
 }
 
 // renders one chat's status and controls
@@ -149,9 +226,7 @@ func (b *Bot) showRemoveConfirm(ctx context.Context, telegramID int64) {
 // shows the added chat, or an error
 func (b *Bot) handleAddChatResult(ctx context.Context, chat *models.Chat, err error) {
 	if err != nil {
-		b.editHome(ctx, "Couldn't add that chat:\n"+err.Error(), tgbotapi.NewInlineKeyboardMarkup(
-			tgbotapi.NewInlineKeyboardRow(backButton("chat:page:0")),
-		))
+		b.showAddError(ctx, "couldn't add that chat: "+err.Error())
 		return
 	}
 	b.showChatDetail(ctx, chat.TelegramID)

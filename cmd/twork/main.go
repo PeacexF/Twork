@@ -14,6 +14,7 @@ import (
 	"github.com/PeacexF/Twork/internal/bot"
 	"github.com/PeacexF/Twork/internal/collector"
 	"github.com/PeacexF/Twork/internal/config"
+	"github.com/PeacexF/Twork/internal/discovery"
 	"github.com/PeacexF/Twork/internal/matcher"
 	"github.com/PeacexF/Twork/internal/models"
 	"github.com/PeacexF/Twork/internal/rsshub"
@@ -94,7 +95,12 @@ func run(configPath string) error {
 		source = collector.New(cfg.Telegram, store, cfg.Chats, onMessage)
 	}
 
-	built, err := bot.New(cfg.Bot.Token, cfg.Bot.OwnerID, store, matchStore, source)
+	var searcher discovery.Searcher
+	if tg := discovery.NewTGStat(cfg.Discovery.TGStatToken); tg != nil {
+		searcher = tg
+	}
+
+	built, err := bot.New(cfg.Bot.Token, cfg.Bot.OwnerID, store, matchStore, source, searcher)
 	if err != nil {
 		return fmt.Errorf("building bot: %w", err)
 	}

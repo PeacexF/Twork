@@ -13,9 +13,8 @@ type pendingInput string
 
 const (
 	inputNone          pendingInput = ""
-	inputAddUsername   pendingInput = "add_username"
-	inputAddInvite     pendingInput = "add_invite"
-	inputAddFolder     pendingInput = "add_folder"
+	inputAddChat       pendingInput = "add_chat"
+	inputFindChats     pendingInput = "find_chats"
 	inputSearchQuery   pendingInput = "search_query"
 	inputAddPositiveKw pendingInput = "add_positive_kw"
 	inputAddNegativeKw pendingInput = "add_negative_kw"

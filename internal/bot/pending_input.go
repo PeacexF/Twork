@@ -14,21 +14,11 @@ func (b *Bot) handlePendingInput(ctx context.Context, msg *tgbotapi.Message) {
 	b.clearPrompt(msg)
 
 	switch pending {
-	case inputAddUsername:
-		chat, err := b.source.AddByUsername(ctx, text)
-		b.handleAddChatResult(ctx, chat, err)
+	case inputAddChat:
+		b.addChatFromInput(ctx, text)
 
-	case inputAddInvite:
-		chat, err := b.source.AddByInviteLink(ctx, text)
-		b.handleAddChatResult(ctx, chat, err)
-
-	case inputAddFolder:
-		chats, err := b.source.AddFolder(ctx, text)
-		if err != nil || len(chats) == 0 {
-			b.handleAddChatResult(ctx, nil, err)
-			return
-		}
-		b.showChatsList(ctx, 0)
+	case inputFindChats:
+		b.findChannels(ctx, text)
 
 	case inputSearchQuery:
 		b.sess.searchQuery = text
