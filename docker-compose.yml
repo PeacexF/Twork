@@ -1,6 +1,8 @@
 services:
   twork:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile.native
     restart: unless-stopped
     volumes:
       # config.yaml must set database.sqlite and telegram.session to paths under ./data

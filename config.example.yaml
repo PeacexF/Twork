@@ -41,18 +41,9 @@ matching:
 
   positive:
     - Go
-    - Golang
-    - Backend
-    - REST
-    - PostgreSQL
-    - Redis
-    - Docker
 
   negative:
-    - Senior
-    - Lead
-    - React
-    - Flutter
+    - JavaScript
 
 notifications:
   enabled: true
