@@ -16,7 +16,8 @@ RUN go mod download
 COPY . .
 
 ENV CGO_ENABLED=1
-RUN go build -tags sqlite_fts5 -o /out/twork ./cmd/twork
+# -p 1 trades build time for lower peak memory
+RUN go build -p 1 -tags sqlite_fts5 -o /out/twork ./cmd/twork
 
 FROM debian:bookworm-slim
 
