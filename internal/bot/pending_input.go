@@ -15,15 +15,15 @@ func (b *Bot) handlePendingInput(ctx context.Context, msg *tgbotapi.Message) {
 
 	switch pending {
 	case inputAddUsername:
-		chat, err := b.coll.AddByUsername(ctx, text)
+		chat, err := b.source.AddByUsername(ctx, text)
 		b.handleAddChatResult(ctx, chat, err)
 
 	case inputAddInvite:
-		chat, err := b.coll.AddByInviteLink(ctx, text)
+		chat, err := b.source.AddByInviteLink(ctx, text)
 		b.handleAddChatResult(ctx, chat, err)
 
 	case inputAddFolder:
-		chats, err := b.coll.AddFolder(ctx, text)
+		chats, err := b.source.AddFolder(ctx, text)
 		if err != nil || len(chats) == 0 {
 			b.handleAddChatResult(ctx, nil, err)
 			return

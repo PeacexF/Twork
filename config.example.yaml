@@ -1,11 +1,28 @@
 # Copy this file to config.yaml and fill in your values.
-# See the "Getting Telegram API credentials" section below for app_id/app_hash.
+
+# Which backend actually monitors Telegram chats:
+#   mtproto (default) - a real Telegram user account (via my.telegram.org
+#                        credentials below). Reads private chats you've
+#                        joined, and public channels without joining.
+#   rsshub             - polls a self-hosted RSSHub instance's
+#                        telegram/channel route instead. No Telegram
+#                        login at all, but public channels only (no
+#                        private chats/groups), and only whatever
+#                        window of recent posts RSSHub returns, not
+#                        full history.
+source:
+  kind: mtproto
 
 telegram:
-  app_id: 0                   # from https://my.telegram.org/apps
+  app_id: 0                   # from https://my.telegram.org/apps -- only needed if source.kind is mtproto
   app_hash: ""                # from https://my.telegram.org/apps
   phone: ""                   # your phone number, international format e.g. +15551234567
   session: session.session    # where the authenticated MTProto session is stored after first login
+
+# Only used if source.kind is "rsshub".
+rsshub:
+  base_url: "http://localhost:1200/telegram/channel/{channel}"  # must contain the literal "{channel}" placeholder
+  poll_interval_seconds: 120                                     # how often each chat's feed is re-fetched
 
 bot:
   token: ""                   # from @BotFather on Telegram
@@ -41,8 +58,8 @@ notifications:
   enabled: true
 
 # Chats to monitor. Use "username" for public channels/groups, or "id"
-# for private ones. The account (the phone number above) must already
-# be a member for "id"-based private chats -- or just leave this empty
-# and add chats through the bot's Chats menu instead, which can resolve
-# public usernames and join invite links on its own.
+# for private ones (mtproto source only -- rsshub can't address chats
+# by numeric id). The account (the phone number above) must already be
+# a member for "id"-based private chats -- or just leave this empty
+# and add chats through the bot's Chats menu instead.
 chats: []

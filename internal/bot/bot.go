@@ -7,18 +7,30 @@ import (
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 
-	"github.com/PeacexF/Twork/internal/collector"
 	"github.com/PeacexF/Twork/internal/matcher"
+	"github.com/PeacexF/Twork/internal/models"
 	"github.com/PeacexF/Twork/internal/storage"
 )
 
 const pageSize = 8
 
+// backs chat monitoring; the MTProto collector and RSSHub poller both satisfy this
+type ChatSource interface {
+	Run(ctx context.Context) error
+	AddByUsername(ctx context.Context, username string) (*models.Chat, error)
+	AddByInviteLink(ctx context.Context, link string) (*models.Chat, error)
+	AddFolder(ctx context.Context, link string) ([]*models.Chat, error)
+	Pause(ctx context.Context, telegramID int64) error
+	Resume(ctx context.Context, telegramID int64) error
+	Remove(ctx context.Context, telegramID int64) error
+	ListResolved() []models.Chat
+}
+
 type Bot struct {
 	api        *tgbotapi.BotAPI
 	store      *storage.Store
 	matchStore *matcher.Store
-	coll       *collector.Collector
+	source     ChatSource
 
 	configuredOwnerID int64
 	ownerID           int64
@@ -26,7 +38,7 @@ type Bot struct {
 }
 
 // builds a Bot around the given token and dependencies
-func New(token string, ownerID int64, store *storage.Store, matchStore *matcher.Store, coll *collector.Collector) (*Bot, error) {
+func New(token string, ownerID int64, store *storage.Store, matchStore *matcher.Store, source ChatSource) (*Bot, error) {
 	api, err := tgbotapi.NewBotAPI(token)
 	if err != nil {
 		return nil, fmt.Errorf("connecting to Telegram Bot API: %w", err)
@@ -35,7 +47,7 @@ func New(token string, ownerID int64, store *storage.Store, matchStore *matcher.
 		api:               api,
 		store:             store,
 		matchStore:        matchStore,
-		coll:              coll,
+		source:            source,
 		configuredOwnerID: ownerID,
 		sess:              &session{},
 	}, nil

@@ -31,18 +31,18 @@ func (b *Bot) handleChatCallback(ctx context.Context, data string) {
 		b.showChatDetail(ctx, id)
 	case strings.HasPrefix(data, "chat:pause:"):
 		id, _ := strconv.ParseInt(strings.TrimPrefix(data, "chat:pause:"), 10, 64)
-		_ = b.coll.Pause(ctx, id)
+		_ = b.source.Pause(ctx, id)
 		b.showChatDetail(ctx, id)
 	case strings.HasPrefix(data, "chat:resume:"):
 		id, _ := strconv.ParseInt(strings.TrimPrefix(data, "chat:resume:"), 10, 64)
-		_ = b.coll.Resume(ctx, id)
+		_ = b.source.Resume(ctx, id)
 		b.showChatDetail(ctx, id)
 	case strings.HasPrefix(data, "chat:remove_ask:"):
 		id, _ := strconv.ParseInt(strings.TrimPrefix(data, "chat:remove_ask:"), 10, 64)
 		b.showRemoveConfirm(ctx, id)
 	case strings.HasPrefix(data, "chat:remove:"):
 		id, _ := strconv.ParseInt(strings.TrimPrefix(data, "chat:remove:"), 10, 64)
-		_ = b.coll.Remove(ctx, id)
+		_ = b.source.Remove(ctx, id)
 		b.showChatsList(ctx, 0)
 	case strings.HasPrefix(data, "chat:tag:"):
 		id, _ := strconv.ParseInt(strings.TrimPrefix(data, "chat:tag:"), 10, 64)
@@ -53,7 +53,7 @@ func (b *Bot) handleChatCallback(ctx context.Context, data string) {
 
 // renders the paginated chats list
 func (b *Bot) showChatsList(ctx context.Context, page int) {
-	chats := b.coll.ListResolved()
+	chats := b.source.ListResolved()
 	sort.Slice(chats, func(i, j int) bool { return strings.ToLower(chats[i].Title) < strings.ToLower(chats[j].Title) })
 
 	start, end := paginate(len(chats), page, pageSize)

@@ -16,6 +16,7 @@ import (
 	"github.com/PeacexF/Twork/internal/config"
 	"github.com/PeacexF/Twork/internal/matcher"
 	"github.com/PeacexF/Twork/internal/models"
+	"github.com/PeacexF/Twork/internal/rsshub"
 	"github.com/PeacexF/Twork/internal/storage"
 )
 
@@ -85,16 +86,22 @@ func run(configPath string) error {
 		return nil
 	}
 
-	coll := collector.New(cfg.Telegram, store, cfg.Chats, onMessage)
+	var source bot.ChatSource
+	switch cfg.Source.Kind {
+	case config.SourceRSSHub:
+		source = rsshub.New(cfg.RSSHub, store, onMessage)
+	default:
+		source = collector.New(cfg.Telegram, store, cfg.Chats, onMessage)
+	}
 
-	built, err := bot.New(cfg.Bot.Token, cfg.Bot.OwnerID, store, matchStore, coll)
+	built, err := bot.New(cfg.Bot.Token, cfg.Bot.OwnerID, store, matchStore, source)
 	if err != nil {
 		return fmt.Errorf("building bot: %w", err)
 	}
 	b = built
 
-	log.Printf("twork: starting")
-	return runConcurrently(ctx, stop, coll.Run, b.Run)
+	log.Printf("twork: starting with source=%s", cfg.Source.Kind)
+	return runConcurrently(ctx, stop, source.Run, b.Run)
 }
 
 // loads keywords from storage, seeding from config.yaml on first run
