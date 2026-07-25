@@ -141,3 +141,78 @@ func TestStore_GetSet(t *testing.T) {
 		t.Fatalf("expected Get() to return updated matcher after Set")
 	}
 }
+
+// a group matches when any alias hits, and reports the group name not the alias
+func TestMatch_Group_AnyAliasHits(t *testing.T) {
+	m := NewFromGroups(config.MatchModeWholeWord,
+		[]config.KeywordGroup{{Name: "Go", Aliases: []string{"go", "golang", "gopher"}}},
+		nil,
+	)
+
+	for _, text := range []string{
+		"We need a Golang dev",
+		"gopher wanted",
+		"backend in Go",
+	} {
+		res := m.Match(text)
+		if !res.Matched() {
+			t.Fatalf("expected match for %q, got %+v", text, res)
+		}
+		if len(res.MatchedKeywords) != 1 || res.MatchedKeywords[0] != "Go" {
+			t.Fatalf("expected matched group name [Go] for %q, got %v", text, res.MatchedKeywords)
+		}
+	}
+}
+
+// a negative group rejects the post and reports the group name
+func TestMatch_NegativeGroup_Rejects(t *testing.T) {
+	m := NewFromGroups(config.MatchModeWholeWord,
+		[]config.KeywordGroup{{Name: "Go", Aliases: []string{"go"}}},
+		[]config.KeywordGroup{{Name: "Seniority", Aliases: []string{"senior", "lead", "staff"}}},
+	)
+
+	res := m.Match("Senior Go engineer")
+	if res.Matched() {
+		t.Fatalf("expected rejection, got %+v", res)
+	}
+	if res.NegativeKeyword != "Seniority" {
+		t.Fatalf("expected negative group name Seniority, got %q", res.NegativeKeyword)
+	}
+}
+
+// a per-group mode overrides the global default
+func TestMatch_PerGroupModeOverride(t *testing.T) {
+	// Global default is whole_word, but this group forces substring, so
+	// "js" should match inside "nodejs".
+	m := NewFromGroups(config.MatchModeWholeWord,
+		[]config.KeywordGroup{{Name: "JS", Aliases: []string{"js"}, Mode: config.MatchModeSubstring}},
+		nil,
+	)
+	if !m.Match("we use nodejs here").Matched() {
+		t.Fatalf("expected substring override to match js inside nodejs")
+	}
+
+	// Same alias without the override should NOT match inside nodejs.
+	m2 := NewFromGroups(config.MatchModeWholeWord,
+		[]config.KeywordGroup{{Name: "JS", Aliases: []string{"js"}}},
+		nil,
+	)
+	if m2.Match("we use nodejs here").Matched() {
+		t.Fatalf("expected whole-word default to NOT match js inside nodejs")
+	}
+}
+
+// flat keyword lists migrate to single-alias groups named after themselves
+func TestNew_FlatListsMigrateToGroups(t *testing.T) {
+	m, err := New(config.MatchingConfig{
+		Positive: []string{"Rust"},
+		Mode:     config.MatchModeWholeWord,
+	})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	res := m.Match("Rust developer wanted")
+	if !res.Matched() || res.MatchedKeywords[0] != "Rust" {
+		t.Fatalf("expected flat keyword Rust to migrate to a group, got %+v", res)
+	}
+}

@@ -64,9 +64,25 @@ type DatabaseConfig struct {
 }
 
 type MatchingConfig struct {
+	// Flat lists are the legacy/simple form; each becomes a single-alias
+	// group on first-run seed. Kept for backward compatibility.
 	Positive []string `yaml:"positive"`
 	Negative []string `yaml:"negative"`
 
+	// Groups are the richer form: a named set of aliases that matches if
+	// any alias hits. Seeded alongside the flat lists on first run.
+	PositiveGroups []KeywordGroup `yaml:"positive_groups"`
+	NegativeGroups []KeywordGroup `yaml:"negative_groups"`
+
+	// Mode is the global default matching mode; a group may override it.
+	Mode string `yaml:"mode"`
+}
+
+// a named set of aliases that matches if any alias hits
+type KeywordGroup struct {
+	Name    string   `yaml:"name"`
+	Aliases []string `yaml:"aliases"`
+	// Mode overrides the global matching mode for this group; "" inherits it.
 	Mode string `yaml:"mode"`
 }
 

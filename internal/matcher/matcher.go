@@ -10,33 +10,67 @@ import (
 )
 
 type Matcher struct {
-	mode     string
-	positive []compiledKeyword
-	negative []compiledKeyword
+	positive []compiledGroup
+	negative []compiledGroup
 }
 
-type compiledKeyword struct {
-	original string
-	lower    string
+type compiledGroup struct {
+	name      string
+	wholeWord bool
+	aliases   []string // all lowercased
 }
 
-// compiles a Matcher from matching config
+// compiles a Matcher from groups, resolving each group's effective mode against the global default
+func NewFromGroups(defaultMode string, positive, negative []config.KeywordGroup) *Matcher {
+	return &Matcher{
+		positive: compileGroups(positive, defaultMode),
+		negative: compileGroups(negative, defaultMode),
+	}
+}
+
+// compiles a Matcher from config, migrating any flat keyword lists into single-alias groups
 func New(cfg config.MatchingConfig) (*Matcher, error) {
-	m := &Matcher{mode: cfg.Mode}
-	m.positive = compileKeywords(cfg.Positive)
-	m.negative = compileKeywords(cfg.Negative)
-	return m, nil
+	pos := append(flatToGroups(cfg.Positive), cfg.PositiveGroups...)
+	neg := append(flatToGroups(cfg.Negative), cfg.NegativeGroups...)
+	return NewFromGroups(cfg.Mode, pos, neg), nil
 }
 
-// trims and lowercases a keyword list
-func compileKeywords(words []string) []compiledKeyword {
-	out := make([]compiledKeyword, 0, len(words))
+// turns each flat keyword into a single-alias group named after itself
+func flatToGroups(words []string) []config.KeywordGroup {
+	out := make([]config.KeywordGroup, 0, len(words))
 	for _, w := range words {
 		w = strings.TrimSpace(w)
 		if w == "" {
 			continue
 		}
-		out = append(out, compiledKeyword{original: w, lower: strings.ToLower(w)})
+		out = append(out, config.KeywordGroup{Name: w, Aliases: []string{w}})
+	}
+	return out
+}
+
+// lowercases and trims a group's aliases, resolving its effective matching mode
+func compileGroups(groups []config.KeywordGroup, defaultMode string) []compiledGroup {
+	out := make([]compiledGroup, 0, len(groups))
+	for _, g := range groups {
+		mode := g.Mode
+		if mode == "" {
+			mode = defaultMode
+		}
+		var aliases []string
+		for _, a := range g.Aliases {
+			a = strings.TrimSpace(strings.ToLower(a))
+			if a != "" {
+				aliases = append(aliases, a)
+			}
+		}
+		if len(aliases) == 0 {
+			continue
+		}
+		out = append(out, compiledGroup{
+			name:      g.Name,
+			wholeWord: mode == config.MatchModeWholeWord,
+			aliases:   aliases,
+		})
 	}
 	return out
 }
@@ -79,40 +113,46 @@ func wholeWordContains(haystack, needle string) bool {
 }
 
 type Result struct {
-	MatchedKeywords []string
-	NegativeKeyword string
+	MatchedKeywords []string // matched positive group names
+	NegativeKeyword string   // name of the negative group that rejected, if any
 }
 
-// reports whether at least one positive keyword hit and no negative did
+// reports whether at least one positive group hit and no negative did
 func (r Result) Matched() bool {
 	return len(r.MatchedKeywords) > 0 && r.NegativeKeyword == ""
 }
 
-// checks text against the negative then positive keyword lists
+// checks text against the negative then positive groups
 func (m *Matcher) Match(text string) Result {
 	lowerText := strings.ToLower(text)
 
-	for _, kw := range m.negative {
-		if m.contains(lowerText, kw) {
-			return Result{NegativeKeyword: kw.original}
+	for _, g := range m.negative {
+		if g.matches(lowerText) {
+			return Result{NegativeKeyword: g.name}
 		}
 	}
 
 	var hits []string
-	for _, kw := range m.positive {
-		if m.contains(lowerText, kw) {
-			hits = append(hits, kw.original)
+	for _, g := range m.positive {
+		if g.matches(lowerText) {
+			hits = append(hits, g.name)
 		}
 	}
 	return Result{MatchedKeywords: hits}
 }
 
-// checks one keyword against text in the configured mode
-func (m *Matcher) contains(lowerText string, kw compiledKeyword) bool {
-	if m.mode == config.MatchModeWholeWord {
-		return wholeWordContains(lowerText, kw.lower)
+// reports whether any of the group's aliases occur in the lowercased text
+func (g compiledGroup) matches(lowerText string) bool {
+	for _, alias := range g.aliases {
+		if g.wholeWord {
+			if wholeWordContains(lowerText, alias) {
+				return true
+			}
+		} else if strings.Contains(lowerText, alias) {
+			return true
+		}
 	}
-	return strings.Contains(lowerText, kw.lower)
+	return false
 }
 
 type Store struct {
