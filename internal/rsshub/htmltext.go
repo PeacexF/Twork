@@ -46,9 +46,15 @@ func parseEntryHTML(raw string) parsedHTML {
 				case href == "":
 					sb.WriteString(text)
 				case text == "" || text == href || strings.HasSuffix(href, text):
-					sb.WriteString(" " + href + " ")
+					sb.WriteString(" ")
+					sb.WriteString(href)
+					sb.WriteString(" ")
 				default:
-					sb.WriteString(" " + text + " (" + href + ") ")
+					sb.WriteString(" ")
+					sb.WriteString(text)
+					sb.WriteString(" (")
+					sb.WriteString(href)
+					sb.WriteString(") ")
 				}
 				return
 			}

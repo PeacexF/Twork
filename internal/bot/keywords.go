@@ -79,7 +79,9 @@ func bulletList(words []string) string {
 	}
 	var sb strings.Builder
 	for _, w := range words {
-		sb.WriteString("• " + w + "\n")
+		sb.WriteString("• ")
+		sb.WriteString(w)
+		sb.WriteString("\n")
 	}
 	return strings.TrimRight(sb.String(), "\n")
 }
