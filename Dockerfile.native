@@ -1,0 +1,22 @@
+# prebuilt twork binary.
+# avoiding the OOM issue
+# chmod +x twork
+# docker build -f Dockerfile.native -t twork .
+# docker run -d --name twork \
+# -v "$(pwd)/config.yaml:/app/config.yaml:ro" \
+# -v "$(pwd)/data:/app/data" \
+# twork
+
+FROM debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY twork /app/twork
+RUN chmod +x /app/twork
+
+VOLUME ["/app/data"]
+
+ENTRYPOINT ["/app/twork"]
+CMD ["--config", "/app/config.yaml"]
