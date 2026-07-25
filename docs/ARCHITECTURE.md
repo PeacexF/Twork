@@ -58,6 +58,16 @@ Every message the collector produces (backfilled or live) goes through one callb
 
 Only `telegram.*` (MTProto credentials) and `bot.*` (bot token, owner ID) stay purely in `config.yaml` -- those are secrets, not editable state.
 
+## Pluggable chat source
+
+The bot never depends on the MTProto collector directly -- it depends on a small `ChatSource` interface (`internal/bot/bot.go`): `Run`, `AddByUsername`, `AddByInviteLink`, `AddFolder`, `Pause`, `Resume`, `Remove`, `ListResolved`. `config.yaml`'s `source.kind` picks which implementation `cmd/twork/main.go` wires in:
+
+- `mtproto` (default) -- `internal/collector`, described above.
+- `rsshub` -- `internal/rsshub`, which polls a self-hosted [RSSHub](https://docs.rsshub.app/) instance's `telegram/channel/:channel` route instead of logging into Telegram at all. No account, no session file, no risk of anything happening to a real Telegram account -- but real tradeoffs come with it:
+  - Only public channels/groups with a `@username` are reachable (RSSHub scrapes `t.me/s/<username>` preview pages); `AddByInviteLink`/`AddFolder` return a clear "not supported" error rather than silently failing.
+  - RSSHub's feed only returns a recent window of posts, not full history, so there's no one-time deep backfill -- just a polling loop (`rsshub.poll_interval_seconds` in config). The very first poll of a newly added chat is still treated as a quiet backfill (no notification spam for posts that were already sitting in the feed).
+  - Telegram message IDs don't exist in an RSS feed. Chats and messages get a stable synthetic ID instead, derived by hashing the username (for chats, always negative, so it can never collide with a real MTProto channel ID) or the entry's GUID/link (for messages) -- see `syntheticChatID`/`syntheticMessageID` in `internal/rsshub/source.go`. Re-ingesting the same item on every poll is still a no-op, because storage's `(chat_id, telegram_message_id)` uniqueness constraint doesn't care whether the ID came from Telegram or a hash.
+
 ## Why a separate MTProto client and Bot
 
 A Telegram Bot (Bot API) cannot read the history of a channel or group it hasn't been added to as a member with the right permissions, and many job channels won't (and shouldn't need to) add a bot as an admin. A regular user account can read any public channel's history, and any private one it's already joined -- which is the entire point of "monitor without manual checking." The Bot API, on the other hand, is by far the simpler and more robust way to build an interactive menu (inline keyboards, callback queries, editing messages), so it's used only for that.
