@@ -12,6 +12,7 @@ type Config struct {
 	Source        SourceConfig        `yaml:"source"`
 	Telegram      TelegramConfig      `yaml:"telegram"`
 	RSSHub        RSSHubConfig        `yaml:"rsshub"`
+	Discovery     DiscoveryConfig     `yaml:"discovery"`
 	Bot           BotConfig           `yaml:"bot"`
 	Database      DatabaseConfig      `yaml:"database"`
 	Matching      MatchingConfig      `yaml:"matching"`
@@ -43,6 +44,12 @@ type BotConfig struct {
 	Token string `yaml:"token"`
 
 	OwnerID int64 `yaml:"owner_id"`
+}
+
+// powers the bot's "Find channels" search; optional
+type DiscoveryConfig struct {
+	// TGStat API token (https://api.tgstat.ru); empty disables the Find feature
+	TGStatToken string `yaml:"tgstat_token"`
 }
 
 type TelegramConfig struct {

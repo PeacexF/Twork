@@ -21,8 +21,15 @@ telegram:
 
 # Only used if source.kind is "rsshub".
 rsshub:
+  # NOT localhost -- inside a container localhost is the container itself.
   base_url: "http://localhost:1200/telegram/channel/{channel}"  # must contain the literal "{channel}" placeholder
   poll_interval_seconds: 120                                     # how often each chat's feed is re-fetched
+
+# Optional. Powers the bot's "Find channels" search. Get a token at
+# https://api.tgstat.ru -- leave empty to disable the feature (you can
+# still add channels directly by @username or link).
+discovery:
+  tgstat_token: ""
 
 bot:
   token: ""                   # from @BotFather on Telegram
