@@ -36,10 +36,9 @@ Telegram (MTProto)                          Telegram (Bot API)
 
 Every message the collector produces (backfilled or live) goes through one callback in `main.go`:
 
-1. Check for an exact-text duplicate (`Store.IsDuplicate`) -- logged, not blocked.
-2. Insert the message (`Store.InsertMessage`) -- idempotent on `(chat_id, telegram_message_id)`, so replaying history is always safe.
-3. Run it through the current matcher (`matcher.Store.Get().Match`).
-4. If it matched, record the match (`Store.RecordMatch`) and, only if the message arrived live (not during backfill), ask the bot to send a notification.
+1. Insert the message (`Store.InsertMessage`). This computes a normalized-text hash and returns `ErrDuplicate` if that hash is already indexed in *any* channel -- cross-posted reposts are skipped silently and never indexed or matched. Insertion is also idempotent on `(chat_id, telegram_message_id)`, so replaying history is always safe.
+2. Run it through the current matcher (`matcher.Store.Get().Match`).
+3. If it matched, record the match (`Store.RecordMatch`) and, only if the message arrived live (not during backfill) and the notification mode includes live pings, ask the bot to send a notification.
 
 ## Package responsibilities
 
@@ -92,9 +91,20 @@ Every menu screen in the bot is the same Telegram message, rewritten in place (`
 
 Rather than a paginated list of summaries, `internal/bot/carousel.go` shows one full post at a time with a prev / position / next row. All three views (Matches, Favorites, Search) share this renderer; only the underlying SQL query differs (`ListMatches`, `ListBookmarked`, `SearchPaged`). Exporting to `.md` pulls every row in the current view, not just the one on screen.
 
+## Notification modes and the daily digest
+
+How matches reach you is a single setting with three values, cycled from the bot's Settings menu and stored in the database:
+
+- `live` (default) -- a ping per match, as it arrives.
+- `digest` -- no live pings at all; matches surface only in one daily summary.
+- `both` -- live pings *and* the daily summary.
+
+The digest itself (`internal/bot/digest.go`) runs as a third concurrent goroutine alongside the chat source and the bot. It reports a count of every new post indexed in the last 24h, then lists only the ones that matched. Backfilled messages never trigger live pings regardless of mode -- adding a chat with a long history would otherwise produce hundreds of notifications at once.
+
 ## Known limitations / deliberate tradeoffs
 
 - **Single owner.** The bot only responds to one Telegram user ID (the first person to send `/start`, or `bot.owner_id` in config). This isn't a multi-tenant service.
 - **No PTS gap recovery.** Live updates use `telegram.Options.UpdateHandler` directly rather than `gotd/td`'s `telegram/updates.Manager`. A dropped connection could in theory miss an update; the next backfill (on restart, or when a chat is resumed) catches up on anything missed.
 - **CGO-based SQLite driver.** `mattn/go-sqlite3` needs a C toolchain at build time and the `sqlite_fts5` build tag.
-- **Exact-text duplicate detection only.** By design (see `PLAN.md` section 7.9) -- no fuzzy matching, no similarity scoring, so "why was this flagged a duplicate" is always answerable with "it's byte-for-byte identical to another indexed message."
+- **Normalized-text duplicate detection, global scope.** A message is a duplicate if its *normalized* text (lowercased, URLs/@mentions stripped, punctuation and emoji dropped, whitespace collapsed) hashes to one already indexed -- in any channel, not just the same one. Duplicates are skipped silently: never indexed, never matched, never notified. Still no fuzzy matching or similarity scoring, so "why was this a duplicate" remains answerable exactly: its normalized text is identical to another indexed message. This deliberately supersedes `PLAN.md` 7.9's exact-text-only rule, because job posts are routinely cross-posted across many channels with trivial formatting differences.
+- **Digest scheduling is wall-clock, server-local.** The scheduler ticks once a minute and fires when the current `HH:MM` matches the configured digest time, at most once per calendar day. It uses the machine's local timezone -- in Docker that's the container's, so set `TZ` on the container if it differs from yours.
