@@ -16,8 +16,10 @@ import (
 
 const pageSize = 8
 
-// builds a Matcher from stored keyword groups
-func matcherFromStoredKeywords(kw storage.Keywords) *matcher.Matcher {
+// MatcherFromKeywords builds a Matcher from persisted keyword groups. It
+// lives here because the bot owns keyword editing and hot-swapping;
+// cmd/twork uses it for the initial load at startup.
+func MatcherFromKeywords(kw storage.Keywords) *matcher.Matcher {
 	return matcher.NewFromGroups(kw.Mode, storedGroupsToConfig(kw.PositiveGroups), storedGroupsToConfig(kw.NegativeGroups))
 }
 

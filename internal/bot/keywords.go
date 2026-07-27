@@ -313,7 +313,7 @@ func (b *Bot) saveKeywords(ctx context.Context, kw storage.Keywords) {
 		log.Printf("twork: saving keywords failed: %v", err)
 		return
 	}
-	b.matchStore.Set(matcherFromStoredKeywords(kw))
+	b.matchStore.Set(MatcherFromKeywords(kw))
 }
 
 // splits comma/newline separated input into trimmed non-empty tokens

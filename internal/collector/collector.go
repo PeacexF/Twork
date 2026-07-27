@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -488,13 +487,4 @@ func messageLink(rc *resolvedChat, msgID int) string {
 		return fmt.Sprintf("https://t.me/%s/%d", rc.Username, msgID)
 	}
 	return fmt.Sprintf("https://t.me/c/%d/%d", rc.TelegramID, msgID)
-}
-
-// splits a chat identifier into username or numeric ID
-func ParseChatIdentifier(s string) (username string, id int64) {
-	s = strings.TrimSpace(s)
-	if n, err := strconv.ParseInt(s, 10, 64); err == nil {
-		return "", n
-	}
-	return strings.TrimPrefix(s, "@"), 0
 }

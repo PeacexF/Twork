@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
-	"time"
 
 	_ "github.com/mattn/go-sqlite3"
 
@@ -166,20 +165,6 @@ func (s *Store) MaxTelegramMessageID(ctx context.Context, telegramChatID int64) 
 // same normalized text has already been indexed (global dedup).
 var ErrDuplicate = fmt.Errorf("duplicate message")
 
-// checks whether a message's normalized text has already been indexed in any channel
-func (s *Store) IsDuplicate(ctx context.Context, text string) (bool, error) {
-	hash := dedupHash(text)
-	if hash == "" {
-		return false, nil
-	}
-	var n int
-	err := s.db.QueryRowContext(ctx, `SELECT COUNT(1) FROM messages WHERE norm_hash = ?`, hash).Scan(&n)
-	if err != nil {
-		return false, err
-	}
-	return n > 0, nil
-}
-
 // inserts a message, skipping global-duplicate text (ErrDuplicate) and idempotent on (chat, telegram message id)
 func (s *Store) InsertMessage(ctx context.Context, m models.Message) (int64, error) {
 	hash := dedupHash(m.Text)
@@ -225,43 +210,6 @@ func (s *Store) RecordMatch(ctx context.Context, messageID int64, keywordsJSON s
 		ON CONFLICT(message_id) DO UPDATE SET matched_keywords = excluded.matched_keywords
 	`, messageID, keywordsJSON)
 	return err
-}
-
-type SearchResult struct {
-	MessageID int64
-	ChatTitle string
-	Text      string
-	Link      string
-	Timestamp time.Time
-}
-
-// runs an FTS5 query
-func (s *Store) Search(ctx context.Context, query string, limit int) ([]SearchResult, error) {
-	if limit <= 0 {
-		limit = 50
-	}
-	rows, err := s.db.QueryContext(ctx, `
-		SELECT m.id, m.chat_title, m.text, m.link, m.ts
-		FROM messages_fts f
-		JOIN messages m ON m.id = f.rowid
-		WHERE messages_fts MATCH ?
-		ORDER BY m.ts DESC
-		LIMIT ?
-	`, query, limit)
-	if err != nil {
-		return nil, fmt.Errorf("searching: %w", err)
-	}
-	defer rows.Close()
-
-	var out []SearchResult
-	for rows.Next() {
-		var r SearchResult
-		if err := rows.Scan(&r.MessageID, &r.ChatTitle, &r.Text, &r.Link, &r.Timestamp); err != nil {
-			return nil, err
-		}
-		out = append(out, r)
-	}
-	return out, rows.Err()
 }
 
 // inserts or updates a chat's metadata

@@ -10,24 +10,19 @@ import (
 var brTagRe = regexp.MustCompile(`(?i)<br\s*/?>`)
 var whitespaceRe = regexp.MustCompile(`[ \t]+`)
 
-type parsedHTML struct {
-	Text      string
-	ImageURLs []string
-}
-
-// normalizes <br>, extracts <img src>, inlines <a href> as "text (url)"
-func parseEntryHTML(raw string) parsedHTML {
+// converts a feed entry's HTML to plain text: normalizes <br>, drops <img>,
+// inlines <a href> as "text (url)"
+func parseEntryHTML(raw string) string {
 	if raw == "" {
-		return parsedHTML{}
+		return ""
 	}
 	raw = brTagRe.ReplaceAllString(raw, "\n")
 
 	doc, err := html.Parse(strings.NewReader("<html><body>" + raw + "</body></html>"))
 	if err != nil {
-		return parsedHTML{Text: normalizeLines(raw)}
+		return normalizeLines(raw)
 	}
 
-	var images []string
 	var sb strings.Builder
 
 	var walk func(*html.Node)
@@ -35,10 +30,7 @@ func parseEntryHTML(raw string) parsedHTML {
 		if n.Type == html.ElementNode {
 			switch n.Data {
 			case "img":
-				if src := attr(n, "src"); src != "" {
-					images = append(images, strings.TrimSpace(src))
-				}
-				return
+				return // images aren't indexed; skip the node entirely
 			case "a":
 				href := strings.TrimSpace(attr(n, "href"))
 				text := strings.TrimSpace(nodeText(n))
@@ -68,7 +60,7 @@ func parseEntryHTML(raw string) parsedHTML {
 	}
 	walk(doc)
 
-	return parsedHTML{Text: normalizeLines(sb.String()), ImageURLs: images}
+	return normalizeLines(sb.String())
 }
 
 func attr(n *html.Node, key string) string {

@@ -266,8 +266,6 @@ func normalizeMessage(item *gofeed.Item, chat models.Chat) models.Message {
 	if raw == "" {
 		raw = item.Description
 	}
-	parsed := parseEntryHTML(raw)
-
 	ts := time.Now().UTC()
 	if item.PublishedParsed != nil {
 		ts = item.PublishedParsed.UTC()
@@ -280,7 +278,7 @@ func normalizeMessage(item *gofeed.Item, chat models.Chat) models.Message {
 		ChatID:            chat.TelegramID,
 		ChatTitle:         chat.Title,
 		Timestamp:         ts,
-		Text:              parsed.Text,
+		Text:              parseEntryHTML(raw),
 		Link:              item.Link,
 	}
 }

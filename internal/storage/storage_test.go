@@ -51,38 +51,23 @@ func TestInsertMessage_IsIdempotent(t *testing.T) {
 }
 
 // duplicate detection normalizes text: whitespace-only differences still count as duplicates
-func TestIsDuplicate_NormalizedText(t *testing.T) {
+func TestInsertMessage_DedupUsesNormalizedText(t *testing.T) {
 	s := newTestStore(t)
 	ctx := context.Background()
 	msg := sampleMessage()
 
-	dup, err := s.IsDuplicate(ctx, msg.Text)
-	if err != nil {
-		t.Fatalf("IsDuplicate error = %v", err)
-	}
-	if dup {
-		t.Fatalf("expected not a duplicate before insert")
-	}
-
 	if _, err := s.InsertMessage(ctx, msg); err != nil {
-		t.Fatalf("insert error = %v", err)
+		t.Fatalf("first insert error = %v", err)
 	}
 
-	dup, err = s.IsDuplicate(ctx, msg.Text)
-	if err != nil {
-		t.Fatalf("IsDuplicate error = %v", err)
-	}
-	if !dup {
-		t.Fatalf("expected exact text to be reported as duplicate")
-	}
-
-	// Trailing whitespace is normalized away, so this IS now a duplicate.
-	dup, err = s.IsDuplicate(ctx, msg.Text+"   \n")
-	if err != nil {
-		t.Fatalf("IsDuplicate error = %v", err)
-	}
-	if !dup {
-		t.Fatalf("expected whitespace-only variation to be flagged as duplicate after normalization")
+	// Trailing whitespace is normalized away, so this IS a duplicate even
+	// though the raw text and the (chat, message id) pair both differ.
+	variant := sampleMessage()
+	variant.ChatID = msg.ChatID + 1
+	variant.TelegramMessageID = msg.TelegramMessageID + 1
+	variant.Text = msg.Text + "   \n"
+	if _, err := s.InsertMessage(ctx, variant); err != ErrDuplicate {
+		t.Fatalf("expected whitespace-only variation to be rejected after normalization, got %v", err)
 	}
 }
 
@@ -96,23 +81,23 @@ func TestSearch_FTS5_FindsInsertedMessage(t *testing.T) {
 		t.Fatalf("insert error = %v", err)
 	}
 
-	results, err := s.Search(ctx, "Docker AND PostgreSQL", 10)
+	results, total, err := s.SearchPaged(ctx, "Docker AND PostgreSQL", 10, 0)
 	if err != nil {
-		t.Fatalf("Search error = %v", err)
+		t.Fatalf("SearchPaged error = %v", err)
 	}
-	if len(results) != 1 {
-		t.Fatalf("expected 1 result, got %d", len(results))
+	if len(results) != 1 || total != 1 {
+		t.Fatalf("expected 1 result (total 1), got %d (total %d)", len(results), total)
 	}
 	if results[0].ChatTitle != "Golang Jobs" {
 		t.Fatalf("expected chat title to be preserved, got %q", results[0].ChatTitle)
 	}
 
-	results, err = s.Search(ctx, "Kubernetes", 10)
+	results, total, err = s.SearchPaged(ctx, "Kubernetes", 10, 0)
 	if err != nil {
-		t.Fatalf("Search error = %v", err)
+		t.Fatalf("SearchPaged error = %v", err)
 	}
-	if len(results) != 0 {
-		t.Fatalf("expected 0 results for absent term, got %d", len(results))
+	if len(results) != 0 || total != 0 {
+		t.Fatalf("expected 0 results for absent term, got %d (total %d)", len(results), total)
 	}
 }
 

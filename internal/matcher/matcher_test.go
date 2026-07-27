@@ -6,23 +6,24 @@ import (
 	"github.com/PeacexF/Twork/internal/config"
 )
 
-// builds a Matcher or fails the test
-func mustNew(t *testing.T, cfg config.MatchingConfig) *Matcher {
-	t.Helper()
-	m, err := New(cfg)
-	if err != nil {
-		t.Fatalf("New() error = %v", err)
+// builds a Matcher from flat keyword lists, folding each keyword into a
+// single-alias group named after itself (the same shape cmd/twork seeds
+// config.yaml's flat lists into)
+func newFlat(mode string, positive, negative []string) *Matcher {
+	return NewFromGroups(mode, flatGroups(positive), flatGroups(negative))
+}
+
+func flatGroups(words []string) []config.KeywordGroup {
+	out := make([]config.KeywordGroup, 0, len(words))
+	for _, w := range words {
+		out = append(out, config.KeywordGroup{Name: w, Aliases: []string{w}})
 	}
-	return m
+	return out
 }
 
 // positive keywords match on word boundaries
 func TestMatch_WholeWord_Basic(t *testing.T) {
-	m := mustNew(t, config.MatchingConfig{
-		Positive: []string{"Go", "Docker", "PostgreSQL"},
-		Negative: []string{"Senior"},
-		Mode:     config.MatchModeWholeWord,
-	})
+	m := newFlat(config.MatchModeWholeWord, []string{"Go", "Docker", "PostgreSQL"}, []string{"Senior"})
 
 	res := m.Match("Looking for a Go backend developer with Docker and PostgreSQL experience")
 	if !res.Matched() {
@@ -41,10 +42,7 @@ func TestMatch_WholeWord_Basic(t *testing.T) {
 
 // whole-word mode must not match inside a longer word
 func TestMatch_WholeWord_AvoidsSubstringFalsePositive(t *testing.T) {
-	m := mustNew(t, config.MatchingConfig{
-		Positive: []string{"Go"},
-		Mode:     config.MatchModeWholeWord,
-	})
+	m := newFlat(config.MatchModeWholeWord, []string{"Go"}, nil)
 
 	res := m.Match("We use Google Cloud and Golang tooling")
 	if res.Matched() {
@@ -54,10 +52,7 @@ func TestMatch_WholeWord_AvoidsSubstringFalsePositive(t *testing.T) {
 
 // substring mode matches inside a longer word
 func TestMatch_Substring_MatchesInsideWords(t *testing.T) {
-	m := mustNew(t, config.MatchingConfig{
-		Positive: []string{"Go"},
-		Mode:     config.MatchModeSubstring,
-	})
+	m := newFlat(config.MatchModeSubstring, []string{"Go"}, nil)
 
 	res := m.Match("We use Golang tooling")
 	if !res.Matched() {
@@ -67,11 +62,7 @@ func TestMatch_Substring_MatchesInsideWords(t *testing.T) {
 
 // a negative keyword rejects the message and hides positive hits
 func TestMatch_NegativeKeywordRejects(t *testing.T) {
-	m := mustNew(t, config.MatchingConfig{
-		Positive: []string{"Go", "Docker"},
-		Negative: []string{"Senior"},
-		Mode:     config.MatchModeWholeWord,
-	})
+	m := newFlat(config.MatchModeWholeWord, []string{"Go", "Docker"}, []string{"Senior"})
 
 	res := m.Match("Senior Go and Docker engineer needed")
 	if res.Matched() {
@@ -87,10 +78,7 @@ func TestMatch_NegativeKeywordRejects(t *testing.T) {
 
 // keyword matching is case-insensitive
 func TestMatch_CaseInsensitive(t *testing.T) {
-	m := mustNew(t, config.MatchingConfig{
-		Positive: []string{"docker"},
-		Mode:     config.MatchModeWholeWord,
-	})
+	m := newFlat(config.MatchModeWholeWord, []string{"docker"}, nil)
 
 	res := m.Match("We need DOCKER experience")
 	if !res.Matched() {
@@ -100,10 +88,7 @@ func TestMatch_CaseInsensitive(t *testing.T) {
 
 // no configured keyword present means no match
 func TestMatch_NoPositiveKeywordFound(t *testing.T) {
-	m := mustNew(t, config.MatchingConfig{
-		Positive: []string{"Rust"},
-		Mode:     config.MatchModeWholeWord,
-	})
+	m := newFlat(config.MatchModeWholeWord, []string{"Rust"}, nil)
 
 	res := m.Match("Looking for a Python developer")
 	if res.Matched() {
@@ -113,10 +98,7 @@ func TestMatch_NoPositiveKeywordFound(t *testing.T) {
 
 // keywords with regex metacharacters (C++, C#) still match correctly
 func TestMatch_KeywordWithRegexMetacharacters(t *testing.T) {
-	m := mustNew(t, config.MatchingConfig{
-		Positive: []string{"C++", "C#"},
-		Mode:     config.MatchModeWholeWord,
-	})
+	m := newFlat(config.MatchModeWholeWord, []string{"C++", "C#"}, nil)
 
 	res := m.Match("Backend role in C++ and some C# tooling")
 	if !res.Matched() {
@@ -129,8 +111,8 @@ func TestMatch_KeywordWithRegexMetacharacters(t *testing.T) {
 
 // Store.Set swaps the matcher returned by Get
 func TestStore_GetSet(t *testing.T) {
-	m1 := mustNew(t, config.MatchingConfig{Positive: []string{"Go"}, Mode: config.MatchModeWholeWord})
-	m2 := mustNew(t, config.MatchingConfig{Positive: []string{"Rust"}, Mode: config.MatchModeWholeWord})
+	m1 := newFlat(config.MatchModeWholeWord, []string{"Go"}, nil)
+	m2 := newFlat(config.MatchModeWholeWord, []string{"Rust"}, nil)
 
 	store := NewStore(m1)
 	if store.Get() != m1 {
@@ -199,20 +181,5 @@ func TestMatch_PerGroupModeOverride(t *testing.T) {
 	)
 	if m2.Match("we use nodejs here").Matched() {
 		t.Fatalf("expected whole-word default to NOT match js inside nodejs")
-	}
-}
-
-// flat keyword lists migrate to single-alias groups named after themselves
-func TestNew_FlatListsMigrateToGroups(t *testing.T) {
-	m, err := New(config.MatchingConfig{
-		Positive: []string{"Rust"},
-		Mode:     config.MatchModeWholeWord,
-	})
-	if err != nil {
-		t.Fatalf("New() error = %v", err)
-	}
-	res := m.Match("Rust developer wanted")
-	if !res.Matched() || res.MatchedKeywords[0] != "Rust" {
-		t.Fatalf("expected flat keyword Rust to migrate to a group, got %+v", res)
 	}
 }

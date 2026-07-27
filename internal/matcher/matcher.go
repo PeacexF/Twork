@@ -28,26 +28,6 @@ func NewFromGroups(defaultMode string, positive, negative []config.KeywordGroup)
 	}
 }
 
-// compiles a Matcher from config, migrating any flat keyword lists into single-alias groups
-func New(cfg config.MatchingConfig) (*Matcher, error) {
-	pos := append(flatToGroups(cfg.Positive), cfg.PositiveGroups...)
-	neg := append(flatToGroups(cfg.Negative), cfg.NegativeGroups...)
-	return NewFromGroups(cfg.Mode, pos, neg), nil
-}
-
-// turns each flat keyword into a single-alias group named after itself
-func flatToGroups(words []string) []config.KeywordGroup {
-	out := make([]config.KeywordGroup, 0, len(words))
-	for _, w := range words {
-		w = strings.TrimSpace(w)
-		if w == "" {
-			continue
-		}
-		out = append(out, config.KeywordGroup{Name: w, Aliases: []string{w}})
-	}
-	return out
-}
-
 // lowercases and trims a group's aliases, resolving its effective matching mode
 func compileGroups(groups []config.KeywordGroup, defaultMode string) []compiledGroup {
 	out := make([]compiledGroup, 0, len(groups))

@@ -120,7 +120,7 @@ func bootstrapMatcher(ctx context.Context, store *storage.Store, cfg *config.Con
 			return nil, err
 		}
 	}
-	return matcher.NewStore(matcherFromStored(kw)), nil
+	return matcher.NewStore(bot.MatcherFromKeywords(kw)), nil
 }
 
 // builds the initial stored keyword set from config, folding flat lists into single-alias groups
@@ -139,20 +139,6 @@ func seedKeywordsFromConfig(m config.MatchingConfig) storage.Keywords {
 		kw.NegativeGroups = append(kw.NegativeGroups, storage.KeywordGroup(g))
 	}
 	return kw
-}
-
-// builds a Matcher from stored keyword groups
-func matcherFromStored(kw storage.Keywords) *matcher.Matcher {
-	return matcher.NewFromGroups(kw.Mode, storedToConfigGroups(kw.PositiveGroups), storedToConfigGroups(kw.NegativeGroups))
-}
-
-// converts storage keyword groups to the config type the matcher consumes
-func storedToConfigGroups(in []storage.KeywordGroup) []config.KeywordGroup {
-	out := make([]config.KeywordGroup, len(in))
-	for i, g := range in {
-		out[i] = config.KeywordGroup(g)
-	}
-	return out
 }
 
 // seeds the notifications toggle from config.yaml on first run
