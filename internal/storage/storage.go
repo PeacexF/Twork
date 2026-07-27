@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -64,6 +65,7 @@ CREATE TABLE IF NOT EXISTS messages (
 	link                 TEXT NOT NULL DEFAULT '',
 	forward_from_title   TEXT NOT NULL DEFAULT '',
 	edit_ts              DATETIME,
+	norm_hash            TEXT NOT NULL DEFAULT '',
 	created_at           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	UNIQUE(chat_id, telegram_message_id)
 );
@@ -71,9 +73,9 @@ CREATE TABLE IF NOT EXISTS messages (
 CREATE INDEX IF NOT EXISTS idx_messages_chat_id ON messages(chat_id);
 CREATE INDEX IF NOT EXISTS idx_messages_ts ON messages(ts);
 
--- Duplicate detection is intentionally exact-text only (PLAN.md 7.9):
--- no fuzzy matching, no similarity scoring.
-CREATE INDEX IF NOT EXISTS idx_messages_text ON messages(text);
+-- Global dedup: a message is a duplicate if its normalized-text hash
+-- matches one already indexed, regardless of which channel it came from.
+CREATE INDEX IF NOT EXISTS idx_messages_norm_hash ON messages(norm_hash);
 
 CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
 	text,
@@ -113,11 +115,36 @@ CREATE TABLE IF NOT EXISTS message_status (
 
 // applies the schema
 func (s *Store) migrate() error {
+	// The ALTER must run before the schema block: the schema creates an
+	// index on norm_hash, which fails if a pre-existing messages table
+	// doesn't have that column yet.
+	if err := s.migrateNormHash(); err != nil {
+		return err
+	}
 	if _, err := s.db.Exec(schema); err != nil {
 		return err
 	}
 	_, err := s.db.Exec(settingsSchema)
 	return err
+}
+
+// adds norm_hash to a pre-existing messages table; no-ops when the table doesn't exist yet or already has the column
+func (s *Store) migrateNormHash() error {
+	var name string
+	err := s.db.QueryRow(`SELECT name FROM sqlite_master WHERE type='table' AND name='messages'`).Scan(&name)
+	if err == sql.ErrNoRows {
+		return nil // fresh database; the schema block creates the column
+	}
+	if err != nil {
+		return err
+	}
+	if _, err := s.db.Exec(`ALTER TABLE messages ADD COLUMN norm_hash TEXT NOT NULL DEFAULT ''`); err != nil {
+		if strings.Contains(err.Error(), "duplicate column") {
+			return nil
+		}
+		return err
+	}
+	return nil
 }
 
 // returns the highest indexed message ID for a chat
@@ -135,23 +162,43 @@ func (s *Store) MaxTelegramMessageID(ctx context.Context, telegramChatID int64) 
 	return int(max.Int64), nil
 }
 
-// checks for exact-text duplicates
+// ErrDuplicate is returned by InsertMessage when a message with the
+// same normalized text has already been indexed (global dedup).
+var ErrDuplicate = fmt.Errorf("duplicate message")
+
+// checks whether a message's normalized text has already been indexed in any channel
 func (s *Store) IsDuplicate(ctx context.Context, text string) (bool, error) {
+	hash := dedupHash(text)
+	if hash == "" {
+		return false, nil
+	}
 	var n int
-	err := s.db.QueryRowContext(ctx, `SELECT COUNT(1) FROM messages WHERE text = ?`, text).Scan(&n)
+	err := s.db.QueryRowContext(ctx, `SELECT COUNT(1) FROM messages WHERE norm_hash = ?`, hash).Scan(&n)
 	if err != nil {
 		return false, err
 	}
 	return n > 0, nil
 }
 
-// inserts a message, idempotent on (chat, telegram message id)
+// inserts a message, skipping global-duplicate text (ErrDuplicate) and idempotent on (chat, telegram message id)
 func (s *Store) InsertMessage(ctx context.Context, m models.Message) (int64, error) {
+	hash := dedupHash(m.Text)
+	if hash != "" {
+		var existing int64
+		err := s.db.QueryRowContext(ctx, `SELECT id FROM messages WHERE norm_hash = ? LIMIT 1`, hash).Scan(&existing)
+		if err == nil {
+			return 0, ErrDuplicate
+		}
+		if err != sql.ErrNoRows {
+			return 0, fmt.Errorf("checking duplicate: %w", err)
+		}
+	}
+
 	res, err := s.db.ExecContext(ctx, `
-		INSERT INTO messages (telegram_message_id, chat_id, chat_title, sender_id, sender_name, ts, text, link, forward_from_title, edit_ts)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO messages (telegram_message_id, chat_id, chat_title, sender_id, sender_name, ts, text, link, forward_from_title, edit_ts, norm_hash)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(chat_id, telegram_message_id) DO NOTHING
-	`, m.TelegramMessageID, m.ChatID, m.ChatTitle, m.SenderID, m.SenderName, m.Timestamp, m.Text, m.Link, m.ForwardFromTitle, m.EditTimestamp)
+	`, m.TelegramMessageID, m.ChatID, m.ChatTitle, m.SenderID, m.SenderName, m.Timestamp, m.Text, m.Link, m.ForwardFromTitle, m.EditTimestamp, hash)
 	if err != nil {
 		return 0, fmt.Errorf("inserting message: %w", err)
 	}

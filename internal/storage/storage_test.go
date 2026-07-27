@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"database/sql"
 	"path/filepath"
 	"testing"
 	"time"
@@ -35,27 +36,22 @@ func sampleMessage() models.Message {
 	}
 }
 
-// re-inserting the same Telegram message returns the same row id
+// re-inserting the identical message is rejected as a duplicate
 func TestInsertMessage_IsIdempotent(t *testing.T) {
 	s := newTestStore(t)
 	ctx := context.Background()
 	msg := sampleMessage()
 
-	id1, err := s.InsertMessage(ctx, msg)
-	if err != nil {
+	if _, err := s.InsertMessage(ctx, msg); err != nil {
 		t.Fatalf("first insert error = %v", err)
 	}
-	id2, err := s.InsertMessage(ctx, msg)
-	if err != nil {
-		t.Fatalf("second insert error = %v", err)
-	}
-	if id1 != id2 {
-		t.Fatalf("expected re-inserting the same telegram message to return the same row id, got %d and %d", id1, id2)
+	if _, err := s.InsertMessage(ctx, msg); err != ErrDuplicate {
+		t.Fatalf("expected ErrDuplicate on re-inserting identical message, got %v", err)
 	}
 }
 
-// duplicate detection is exact-text only, no fuzzy matching
-func TestIsDuplicate_ExactTextOnly(t *testing.T) {
+// duplicate detection normalizes text: whitespace-only differences still count as duplicates
+func TestIsDuplicate_NormalizedText(t *testing.T) {
 	s := newTestStore(t)
 	ctx := context.Background()
 	msg := sampleMessage()
@@ -77,15 +73,16 @@ func TestIsDuplicate_ExactTextOnly(t *testing.T) {
 		t.Fatalf("IsDuplicate error = %v", err)
 	}
 	if !dup {
-		t.Fatalf("expected exact text match to be reported as duplicate")
+		t.Fatalf("expected exact text to be reported as duplicate")
 	}
 
-	dup, err = s.IsDuplicate(ctx, msg.Text+" ")
+	// Trailing whitespace is normalized away, so this IS now a duplicate.
+	dup, err = s.IsDuplicate(ctx, msg.Text+"   \n")
 	if err != nil {
 		t.Fatalf("IsDuplicate error = %v", err)
 	}
-	if dup {
-		t.Fatalf("expected near-identical (but not exact) text to NOT be flagged as duplicate")
+	if !dup {
+		t.Fatalf("expected whitespace-only variation to be flagged as duplicate after normalization")
 	}
 }
 
@@ -147,4 +144,78 @@ func TestRecordMatchAndStats(t *testing.T) {
 	if stats.ChatsMonitored != 1 {
 		t.Fatalf("expected 1 monitored chat, got %d", stats.ChatsMonitored)
 	}
+}
+
+// a cross-channel repost of the same text is rejected as a global duplicate
+func TestInsertMessage_GlobalDedup(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	m1 := sampleMessage()
+	if _, err := s.InsertMessage(ctx, m1); err != nil {
+		t.Fatalf("first insert: %v", err)
+	}
+
+	// Same text, DIFFERENT channel and telegram id -> should be a duplicate.
+	m2 := sampleMessage()
+	m2.ChatID = m1.ChatID + 999
+	m2.TelegramMessageID = m1.TelegramMessageID + 999
+	m2.ChatTitle = "Some Other Channel"
+	_, err := s.InsertMessage(ctx, m2)
+	if err != ErrDuplicate {
+		t.Fatalf("expected ErrDuplicate for cross-channel repost, got %v", err)
+	}
+}
+
+// opening a database that predates the norm_hash column adds it without error
+func TestMigrate_AddsNormHashToLegacyDB(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/legacy.db"
+
+	// Create a messages table WITHOUT norm_hash, simulating an old install.
+	raw, err := openRawLegacy(path)
+	if err != nil {
+		t.Fatalf("creating legacy db: %v", err)
+	}
+	raw.Close()
+
+	// Opening through the normal path should migrate it in.
+	s, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open on legacy db failed to migrate: %v", err)
+	}
+	defer s.Close()
+
+	// A normal insert (which writes norm_hash) must now succeed.
+	if _, err := s.InsertMessage(context.Background(), sampleMessage()); err != nil {
+		t.Fatalf("insert after migration failed: %v", err)
+	}
+}
+
+// creates a messages table lacking norm_hash, to simulate a pre-migration database
+func openRawLegacy(path string) (*sql.DB, error) {
+	db, err := sql.Open("sqlite3", "file:"+path)
+	if err != nil {
+		return nil, err
+	}
+	_, err = db.Exec(`CREATE TABLE messages (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		telegram_message_id INTEGER NOT NULL,
+		chat_id INTEGER NOT NULL,
+		chat_title TEXT NOT NULL DEFAULT '',
+		sender_id INTEGER NOT NULL DEFAULT 0,
+		sender_name TEXT NOT NULL DEFAULT '',
+		ts DATETIME NOT NULL,
+		text TEXT NOT NULL DEFAULT '',
+		link TEXT NOT NULL DEFAULT '',
+		forward_from_title TEXT NOT NULL DEFAULT '',
+		edit_ts DATETIME,
+		created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+		UNIQUE(chat_id, telegram_message_id)
+	)`)
+	if err != nil {
+		db.Close()
+		return nil, err
+	}
+	return db, nil
 }
