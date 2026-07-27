@@ -54,12 +54,15 @@ matching:
   negative:
     - JavaScript
 
+  # Groups: a named set of aliases that matches if ANY alias is found.
+  # "Matched:" shows the group name, not which alias hit. Each group may override the global mode above. 
+  # Manage these live from the bot's keywords menu too -- this is just the first-run seed.
   positive_groups:
     - name: Go
       aliases: [go, golang, gopher]
     - name: Kubernetes
       aliases: [kubernetes, k8s]
-      mode: substring        # per-group override
+      mode: substring        # optional per-group override
 
   negative_groups:
     - name: Seniority
@@ -67,6 +70,8 @@ matching:
 
 notifications:
   enabled: true
+  # thw rest is configurred in the bot (the method of notifications reaching you)
+  # Defaults: live pings, digest at 09:00 server local time.
 
 # Chats to monitor. Use "username" for public channels/groups, or "id"
 # for private ones (mtproto source only -- rsshub can't address chats

@@ -58,13 +58,11 @@ func run(configPath string) error {
 	var b *bot.Bot
 
 	onMessage := func(ctx context.Context, msg models.Message, live bool) error {
-
-		if dup, err := store.IsDuplicate(ctx, msg.Text); err == nil && dup {
-			log.Printf("twork: duplicate text detected (chat=%s, msg=%d)", msg.ChatTitle, msg.TelegramMessageID)
-		}
-
 		id, err := store.InsertMessage(ctx, msg)
 		if err != nil {
+			if errors.Is(err, storage.ErrDuplicate) {
+				return nil // global dedup: never index or match the same text twice
+			}
 			return fmt.Errorf("inserting message: %w", err)
 		}
 
@@ -107,7 +105,7 @@ func run(configPath string) error {
 	b = built
 
 	log.Printf("twork: starting with source=%s", cfg.Source.Kind)
-	return runConcurrently(ctx, stop, source.Run, b.Run)
+	return runConcurrently(ctx, stop, source.Run, b.Run, b.RunDigestScheduler)
 }
 
 // loads keywords from storage, seeding from config.yaml on first run

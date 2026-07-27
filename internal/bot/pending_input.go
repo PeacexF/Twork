@@ -33,5 +33,8 @@ func (b *Bot) handlePendingInput(ctx context.Context, msg *tgbotapi.Message) {
 	case inputEditTag:
 		_ = b.store.SetChatTag(ctx, b.sess.editingTagFor, text)
 		b.showChatDetail(ctx, b.sess.editingTagFor)
+
+	case inputDigestTime:
+		b.setDigestTime(ctx, text)
 	}
 }
