@@ -10,9 +10,10 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 
 	"github.com/PeacexF/Twork/internal/models"
+	"github.com/PeacexF/Twork/internal/storage"
 )
 
-// sends a live-match alert if notifications are enabled
+// sends a live-match alert if notifications are enabled and the mode includes live pings
 func (b *Bot) NotifyMatch(ctx context.Context, msg models.Message, messageID int64, matchedKeywords []string) {
 	if b.ownerID == 0 {
 		return
@@ -23,6 +24,13 @@ func (b *Bot) NotifyMatch(ctx context.Context, msg models.Message, messageID int
 	}
 	if ok && !enabled {
 		return
+	}
+	mode, err := b.store.GetNotificationMode(ctx)
+	if err != nil {
+		log.Printf("twork: reading notification mode failed: %v", err)
+	}
+	if mode == storage.NotifyModeDigest {
+		return // digest-only: live pings suppressed, matches surface in the daily digest
 	}
 
 	snippet := msg.Text

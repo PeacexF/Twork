@@ -19,6 +19,7 @@ const (
 	inputNewGroup    pendingInput = "new_group"
 	inputAddAlias    pendingInput = "add_alias"
 	inputEditTag     pendingInput = "edit_tag"
+	inputDigestTime  pendingInput = "digest_time"
 	inputJumpToPage  pendingInput = "jump_to_page"
 )
 
