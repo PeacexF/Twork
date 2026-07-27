@@ -137,3 +137,54 @@ func (s *Store) ToggleBookmark(ctx context.Context, messageID int64) (bool, erro
 	}
 	return bookmarkedInt != 0, nil
 }
+
+// returns matches recorded since the given time, newest first, for the digest
+func (s *Store) MatchesSince(ctx context.Context, since time.Time, limit int) ([]MatchRow, error) {
+	if limit <= 0 {
+		limit = 100
+	}
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT m.id, m.chat_title, m.text, m.link, m.ts,
+		       ma.matched_keywords, COALESCE(st.bookmarked, 0)
+		FROM matches ma
+		JOIN messages m ON m.id = ma.message_id
+		LEFT JOIN message_status st ON st.message_id = m.id
+		WHERE ma.created_at >= ?
+		ORDER BY m.ts DESC
+		LIMIT ?
+	`, since.UTC(), limit)
+	if err != nil {
+		return nil, fmt.Errorf("querying digest matches: %w", err)
+	}
+	defer rows.Close()
+
+	var out []MatchRow
+	for rows.Next() {
+		var r MatchRow
+		var keywordsJSON string
+		var bookmarkedInt int
+		if err := rows.Scan(&r.MessageID, &r.ChatTitle, &r.Text, &r.Link, &r.Timestamp, &keywordsJSON, &bookmarkedInt); err != nil {
+			return nil, err
+		}
+		if keywordsJSON != "" {
+			_ = json.Unmarshal([]byte(keywordsJSON), &r.MatchedKeywords)
+		}
+		r.Bookmarked = bookmarkedInt != 0
+		out = append(out, r)
+	}
+	return out, rows.Err()
+}
+
+// counts messages indexed since the given time, for the digest header
+func (s *Store) CountMessagesSince(ctx context.Context, since time.Time) (int, error) {
+	var n int
+	err := s.db.QueryRowContext(ctx, `SELECT COUNT(1) FROM messages WHERE created_at >= ?`, since.UTC()).Scan(&n)
+	return n, err
+}
+
+// counts matches recorded since the given time
+func (s *Store) CountMatchesSince(ctx context.Context, since time.Time) (int, error) {
+	var n int
+	err := s.db.QueryRowContext(ctx, `SELECT COUNT(1) FROM matches WHERE created_at >= ?`, since.UTC()).Scan(&n)
+	return n, err
+}

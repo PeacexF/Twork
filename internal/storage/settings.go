@@ -21,7 +21,16 @@ const (
 	settingKeywordsPositiveGroups = "keywords.positive_groups"
 	settingKeywordsNegativeGroups = "keywords.negative_groups"
 	settingNotificationsEnabled   = "notifications.enabled"
+	settingNotificationMode       = "notifications.mode"
+	settingDigestTime             = "notifications.digest_time"
 	settingBotOwnerID             = "bot.owner_id"
+)
+
+// how matches are surfaced to the user
+const (
+	NotifyModeLive   = "live"   // a message per match, as they arrive
+	NotifyModeDigest = "digest" // one daily summary, no live pings
+	NotifyModeBoth   = "both"   // live pings AND a daily summary
 )
 
 // reads one raw setting value
@@ -168,6 +177,40 @@ func (s *Store) SetNotificationsEnabled(ctx context.Context, enabled bool) error
 		v = "1"
 	}
 	return s.SetSetting(ctx, settingNotificationsEnabled, v)
+}
+
+// reads the notification mode (live/digest/both), defaulting to live
+func (s *Store) GetNotificationMode(ctx context.Context) (string, error) {
+	v, ok, err := s.GetSetting(ctx, settingNotificationMode)
+	if err != nil {
+		return NotifyModeLive, err
+	}
+	if !ok || (v != NotifyModeLive && v != NotifyModeDigest && v != NotifyModeBoth) {
+		return NotifyModeLive, nil
+	}
+	return v, nil
+}
+
+// writes the notification mode
+func (s *Store) SetNotificationMode(ctx context.Context, mode string) error {
+	return s.SetSetting(ctx, settingNotificationMode, mode)
+}
+
+// reads the daily digest time as "HH:MM", defaulting to 09:00
+func (s *Store) GetDigestTime(ctx context.Context) (string, error) {
+	v, ok, err := s.GetSetting(ctx, settingDigestTime)
+	if err != nil {
+		return "09:00", err
+	}
+	if !ok || v == "" {
+		return "09:00", nil
+	}
+	return v, nil
+}
+
+// writes the daily digest time ("HH:MM")
+func (s *Store) SetDigestTime(ctx context.Context, hhmm string) error {
+	return s.SetSetting(ctx, settingDigestTime, hhmm)
 }
 
 // reads the claimed owner ID
