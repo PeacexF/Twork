@@ -25,6 +25,21 @@ jobs:
       - name: Install build dependencies
         run: sudo apt-get update && sudo apt-get install -y build-essential
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      # internal/web embeds internal/web/dist via go:embed, so go vet/build/test
+      # below all need a real build here, not just the committed placeholder.
+      - name: Build web dashboard
+        working-directory: web
+        run: |
+          npm ci
+          npm run lint
+          npm run build
+
       - name: gofmt check
         run: |
           out="$(gofmt -l .)"
