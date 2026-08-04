@@ -5,11 +5,13 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/PeacexF/Twork/internal/config"
 	"github.com/PeacexF/Twork/internal/models"
@@ -126,6 +128,38 @@ func decodeBody(t *testing.T, resp *http.Response, v any) {
 	defer resp.Body.Close()
 	if err := json.NewDecoder(resp.Body).Decode(v); err != nil {
 		t.Fatalf("decoding response body: %v", err)
+	}
+}
+
+// a port already in use fails Run() immediately with a clear error, instead
+// of the bind conflict only surfacing asynchronously deep inside ListenAndServe
+func TestRun_BindConflictFailsImmediately(t *testing.T) {
+	store, err := storage.Open(filepath.Join(t.TempDir(), "web.db"))
+	if err != nil {
+		t.Fatalf("opening store: %v", err)
+	}
+	defer store.Close()
+
+	occupied, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("Listen: %v", err)
+	}
+	defer occupied.Close()
+
+	s := New(store, &fakeSource{}, &fakeSender{}, config.WebConfig{
+		Addr: occupied.Addr().String(), Username: "a", Password: "b",
+	})
+
+	done := make(chan error, 1)
+	go func() { done <- s.Run(context.Background()) }()
+
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Fatal("expected Run to fail when the address is already in use")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Run did not return promptly on a bind conflict")
 	}
 }
 

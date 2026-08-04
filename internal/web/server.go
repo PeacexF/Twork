@@ -6,6 +6,9 @@ package web
 
 import (
 	"context"
+	"fmt"
+	"log"
+	"net"
 	"net/http"
 	"time"
 
@@ -38,10 +41,19 @@ func New(store *storage.Store, source bot.ChatSource, sender broadcaster.Sender,
 	return s
 }
 
-// runs the dashboard's HTTP server until ctx is cancelled
+// runs the dashboard's HTTP server until ctx is cancelled. Binds the port
+// synchronously before returning, so a conflict (e.g. another process
+// already on cfg.Addr) surfaces immediately as an error instead of only
+// showing up asynchronously once the caller happens to notice.
 func (s *Server) Run(ctx context.Context) error {
+	listener, err := net.Listen("tcp", s.httpServer.Addr)
+	if err != nil {
+		return fmt.Errorf("binding %s: %w", s.httpServer.Addr, err)
+	}
+	log.Printf("twork: web dashboard listening on %s", s.httpServer.Addr)
+
 	errCh := make(chan error, 1)
-	go func() { errCh <- s.httpServer.ListenAndServe() }()
+	go func() { errCh <- s.httpServer.Serve(listener) }()
 
 	select {
 	case <-ctx.Done():

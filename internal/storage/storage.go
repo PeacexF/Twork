@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -17,6 +19,14 @@ type Store struct {
 
 // opens the database and applies schema migrations
 func Open(path string) (*Store, error) {
+	// sqlite creates the db FILE on first connection, but never the
+	// directory it lives in -- a fresh checkout's ./data/ (the documented
+	// default) won't exist yet, so create it up front.
+	if dir := filepath.Dir(path); dir != "." {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return nil, fmt.Errorf("creating directory %q for database: %w", dir, err)
+		}
+	}
 
 	dsn := fmt.Sprintf("file:%s?_fk=1&_journal=WAL&_busy_timeout=5000", path)
 	db, err := sql.Open("sqlite3", dsn)

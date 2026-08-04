@@ -124,7 +124,6 @@ func run(configPath string) error {
 	if cfg.Web.Enabled {
 		webSvc := web.New(store, source, sender, cfg.Web)
 		runners = append(runners, webSvc.Run)
-		log.Printf("twork: web dashboard listening on %s", cfg.Web.Addr)
 	}
 
 	log.Printf("twork: starting with source=%s", cfg.Source.Kind)

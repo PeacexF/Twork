@@ -2,6 +2,8 @@ package storage
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -233,10 +235,35 @@ func TestBotOwnerID_RoundTrip(t *testing.T) {
 	}
 }
 
-// opening a database in a directory that doesn't exist fails cleanly
+// a fresh checkout's ./data/ won't exist yet -- Open must create it (and
+// any missing parents) rather than requiring the caller to mkdir first
+func TestOpen_CreatesMissingDirectory(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "no", "such", "dir", "twork.db")
+	s, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer s.Close()
+
+	if _, err := os.Stat(path); err != nil {
+		t.Errorf("expected the database file to exist at %q: %v", path, err)
+	}
+}
+
+// Open still fails cleanly when it genuinely can't create the directory
+// (as opposed to the directory merely not existing yet)
 func TestOpen_UnwritablePath(t *testing.T) {
-	if _, err := Open(t.TempDir() + "/no/such/dir/twork.db"); err == nil {
-		t.Error("expected Open to fail for a path whose directory doesn't exist")
+	if os.Getuid() == 0 {
+		t.Skip("permission checks don't apply when running as root")
+	}
+	parent := t.TempDir()
+	if err := os.Chmod(parent, 0o500); err != nil {
+		t.Fatalf("chmod: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(parent, 0o700) }) // let TempDir's own cleanup remove it
+
+	if _, err := Open(filepath.Join(parent, "sub", "twork.db")); err == nil {
+		t.Error("expected Open to fail when it can't create the containing directory")
 	}
 }
 
