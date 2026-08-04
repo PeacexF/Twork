@@ -62,6 +62,9 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+!/internal/web/dist
+/internal/web/dist/*
+!/internal/web/dist/index.html
 *.local
 .vscode/*
 !.vscode/extensions.json
