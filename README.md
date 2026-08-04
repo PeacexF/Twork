@@ -26,7 +26,7 @@ The idea is simple: instead of checking dozens (or hundreds) of channels every d
 
 No AI(i have bad experience with the api honestly), no cloud services, no external APIs.
 
-Just deterministic keyword matching, a local database, and a Telegram bot interface.
+Just deterministic keyword matching, a local database, a Telegram bot interface, and an optional web dashboard.
 
 ## Planned Features
 
@@ -39,13 +39,36 @@ Just deterministic keyword matching, a local database, and a Telegram bot interf
 * Simple statistics dashboard
 * Direct links to the original Telegram messages
 * SQLite-based storage (PostgreSQL may come later)
+* Resume broadcasting into monitored groups (see below)
+* Optional web dashboard for managing chats and the resume
+
+## Resume broadcasting
+
+Most "vacancies" posted in Telegram job channels are stale or outright fake. What actually
+works is having your own pitch visible in the groups people who need help are already in --
+they see it and DM *you*, rather than the other way around.
+
+Twork can periodically re-post your resume/pitch into the **groups** you monitor, on a
+schedule you set, per chat. A few things are deliberate, not incidental:
+
+* **Off by default**, per chat -- you turn it on from the bot or the web dashboard.
+* **Groups only.** Channels are broadcast-only (a regular member usually can't post there,
+  and an admin "sending" would blast every subscriber instead of building presence), so
+  broadcasting can't be enabled on one. Enforced in the storage layer, not just the UI.
+* **DMs are never touched, in either direction.** No detection of inbound messages, no
+  auto-reply. What happens after someone reaches out to you is entirely on you.
+* **Hardcoded, overridable safety limits**: a minimum delay between two sends into the same
+  group, and a maximum number of sends per hour across every group combined. Both exist to
+  keep the account from getting rate-limited or banned for spam-like behavior -- lowering
+  them is strongly discouraged, even on a Telegram Premium account. See `compliance:` in
+  `config.example.yaml`.
+* Only works with the `mtproto` source -- `rsshub` is read-only and can't send anything.
 
 ## What Twork is **not**
 
 * An AI job assistant
 * A job board
-* An automatic application bot
-* A resume generator
+* A resume generator (you write the pitch; Twork only sends it, on your explicit say-so)
 
 The goal is to stay lightweight, predictable, and completely self-hosted.
 
