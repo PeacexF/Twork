@@ -41,16 +41,33 @@ func (s *Store) Close() error {
 
 const schema = `
 CREATE TABLE IF NOT EXISTS chats (
-	id            INTEGER PRIMARY KEY AUTOINCREMENT,
-	telegram_id   INTEGER NOT NULL UNIQUE,
-	access_hash   INTEGER NOT NULL DEFAULT 0,
-	kind          TEXT NOT NULL,
-	title         TEXT NOT NULL DEFAULT '',
-	username      TEXT NOT NULL DEFAULT '',
-	tag           TEXT NOT NULL DEFAULT '',
-	paused        INTEGER NOT NULL DEFAULT 0,
+	id                       INTEGER PRIMARY KEY AUTOINCREMENT,
+	telegram_id              INTEGER NOT NULL UNIQUE,
+	access_hash              INTEGER NOT NULL DEFAULT 0,
+	kind                     TEXT NOT NULL,
+	title                    TEXT NOT NULL DEFAULT '',
+	username                 TEXT NOT NULL DEFAULT '',
+	tag                      TEXT NOT NULL DEFAULT '',
+	paused                   INTEGER NOT NULL DEFAULT 0,
+	-- resume broadcasting: off by default, only ever valid for a group
+	-- (see storage.SetChatResumeConfig) -- never a channel, never a DM
+	resume_enabled           INTEGER NOT NULL DEFAULT 0,
+	resume_interval_seconds  INTEGER NOT NULL DEFAULT 0,
+	resume_text              TEXT NOT NULL DEFAULT '',
 	created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+-- log of resume broadcasts sent, one row per successful send. Kept as a
+-- log rather than a single last-sent timestamp because the global
+-- per-hour cap needs a rolling count across every chat combined.
+CREATE TABLE IF NOT EXISTS resume_sends (
+	id      INTEGER PRIMARY KEY AUTOINCREMENT,
+	chat_id INTEGER NOT NULL,
+	sent_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_resume_sends_chat_id ON resume_sends(chat_id);
+CREATE INDEX IF NOT EXISTS idx_resume_sends_sent_at ON resume_sends(sent_at);
 
 CREATE TABLE IF NOT EXISTS messages (
 	id                   INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -114,10 +131,14 @@ CREATE TABLE IF NOT EXISTS message_status (
 
 // applies the schema
 func (s *Store) migrate() error {
-	// The ALTER must run before the schema block: the schema creates an
+	// The ALTERs must run before the schema block: the schema creates an
 	// index on norm_hash, which fails if a pre-existing messages table
-	// doesn't have that column yet.
+	// doesn't have that column yet, and code elsewhere selects the
+	// resume_* columns unconditionally.
 	if err := s.migrateNormHash(); err != nil {
+		return err
+	}
+	if err := s.migrateChatsResumeColumns(); err != nil {
 		return err
 	}
 	if _, err := s.db.Exec(schema); err != nil {
@@ -142,6 +163,33 @@ func (s *Store) migrateNormHash() error {
 			return nil
 		}
 		return err
+	}
+	return nil
+}
+
+// adds the resume broadcasting columns to a pre-existing chats table; no-ops
+// when the table doesn't exist yet or already has the columns
+func (s *Store) migrateChatsResumeColumns() error {
+	var name string
+	err := s.db.QueryRow(`SELECT name FROM sqlite_master WHERE type='table' AND name='chats'`).Scan(&name)
+	if err == sql.ErrNoRows {
+		return nil // fresh database; the schema block creates the columns
+	}
+	if err != nil {
+		return err
+	}
+	alters := []string{
+		`ALTER TABLE chats ADD COLUMN resume_enabled INTEGER NOT NULL DEFAULT 0`,
+		`ALTER TABLE chats ADD COLUMN resume_interval_seconds INTEGER NOT NULL DEFAULT 0`,
+		`ALTER TABLE chats ADD COLUMN resume_text TEXT NOT NULL DEFAULT ''`,
+	}
+	for _, stmt := range alters {
+		if _, err := s.db.Exec(stmt); err != nil {
+			if strings.Contains(err.Error(), "duplicate column") {
+				continue
+			}
+			return err
+		}
 	}
 	return nil
 }

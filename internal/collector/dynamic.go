@@ -2,6 +2,8 @@ package collector
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/binary"
 	"fmt"
 	"log"
 	"strings"
@@ -209,6 +211,31 @@ func (c *Collector) Remove(ctx context.Context, telegramID int64) error {
 	delete(c.resolved, telegramID)
 	c.mu.Unlock()
 	return nil
+}
+
+// posts a text message into a chat the account already monitors -- used by
+// the resume broadcaster. Only ever called for groups (storage.
+// SetChatResumeConfig and the broadcaster both guard against channels), and
+// it can only ever address chats already resolved from a Channel/Chat
+// dialog, never a bare user -- there's no path from a DM into c.resolved.
+func (c *Collector) SendText(ctx context.Context, telegramID int64, text string) error {
+	c.mu.RLock()
+	rc, ok := c.resolved[telegramID]
+	c.mu.RUnlock()
+	if !ok {
+		return fmt.Errorf("chat %d is not monitored", telegramID)
+	}
+
+	var b [8]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return fmt.Errorf("generating random id: %w", err)
+	}
+	_, err := c.api.MessagesSendMessage(ctx, &tg.MessagesSendMessageRequest{
+		Peer:     rc.InputPeer,
+		Message:  text,
+		RandomID: int64(binary.LittleEndian.Uint64(b[:])),
+	})
+	return err
 }
 
 // snapshots the currently monitored chats

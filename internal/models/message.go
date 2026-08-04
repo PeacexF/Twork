@@ -25,6 +25,11 @@ type Chat struct {
 	Tag        string
 	Paused     bool
 	CreatedAt  time.Time
+
+	// resume broadcasting: off by default
+	ResumeEnabled         bool
+	ResumeIntervalSeconds int
+	ResumeText            string
 }
 
 type ChatKind string

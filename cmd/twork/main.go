@@ -12,6 +12,7 @@ import (
 	"syscall"
 
 	"github.com/PeacexF/Twork/internal/bot"
+	"github.com/PeacexF/Twork/internal/broadcaster"
 	"github.com/PeacexF/Twork/internal/collector"
 	"github.com/PeacexF/Twork/internal/config"
 	"github.com/PeacexF/Twork/internal/discovery"
@@ -19,6 +20,7 @@ import (
 	"github.com/PeacexF/Twork/internal/models"
 	"github.com/PeacexF/Twork/internal/rsshub"
 	"github.com/PeacexF/Twork/internal/storage"
+	"github.com/PeacexF/Twork/internal/web"
 )
 
 // parses flags and runs the app
@@ -54,6 +56,10 @@ func run(configPath string) error {
 	if err := bootstrapNotifications(ctx, store, cfg); err != nil {
 		return fmt.Errorf("bootstrapping notification settings: %w", err)
 	}
+	if err := bootstrapCompliance(ctx, store, cfg); err != nil {
+		return fmt.Errorf("bootstrapping compliance settings: %w", err)
+	}
+	printComplianceWarning(cfg)
 
 	var b *bot.Bot
 
@@ -104,8 +110,41 @@ func run(configPath string) error {
 	}
 	b = built
 
+	// Resume broadcasting only works with a source that can actually post
+	// into a chat -- the MTProto collector can, RSSHub (read-only) can't.
+	var sender broadcaster.Sender
+	if s, ok := source.(broadcaster.Sender); ok {
+		sender = s
+	} else {
+		log.Printf("twork: resume broadcasting is unavailable with source=%s (read-only)", cfg.Source.Kind)
+	}
+	broadcasterSvc := broadcaster.New(store, sender)
+
+	runners := []func(context.Context) error{source.Run, b.Run, b.RunDigestScheduler, broadcasterSvc.Run}
+	if cfg.Web.Enabled {
+		webSvc := web.New(store, source, sender, cfg.Web)
+		runners = append(runners, webSvc.Run)
+		log.Printf("twork: web dashboard listening on %s", cfg.Web.Addr)
+	}
+
 	log.Printf("twork: starting with source=%s", cfg.Source.Kind)
-	return runConcurrently(ctx, stop, source.Run, b.Run, b.RunDigestScheduler)
+	return runConcurrently(ctx, stop, runners...)
+}
+
+// prints a startup warning about the resume broadcasting feature's spam/ban
+// risk -- always shown, not configurable away
+func printComplianceWarning(cfg *config.Config) {
+	log.Printf(`twork: ================================================================
+twork:  Resume broadcasting can post messages into Telegram groups on
+twork:  your behalf. Do NOT use this to spam. Telegram can permanently
+twork:  limit or ban accounts for unsolicited or repetitive messages --
+twork:  this is a real risk to the account running Twork.
+twork:
+twork:  Current limits: minimum %ds between sends into the same group,
+twork:  maximum %d sends/hour across all groups combined. Lowering these
+twork:  is strongly discouraged, even on a Telegram Premium account.
+twork: ================================================================`,
+		cfg.Compliance.MinDelaySeconds, cfg.Compliance.MaxPerHour)
 }
 
 // loads keywords from storage, seeding from config.yaml on first run
@@ -149,6 +188,22 @@ func bootstrapNotifications(ctx context.Context, store *storage.Store, cfg *conf
 		return store.SetNotificationsEnabled(ctx, cfg.Notifications.Enabled)
 	}
 	return nil
+}
+
+// seeds the resume broadcasting compliance limits from config.yaml on first
+// run; after that the bot/web dashboard are authoritative
+func bootstrapCompliance(ctx context.Context, store *storage.Store, cfg *config.Config) error {
+	configured, err := store.ResumeComplianceConfigured(ctx)
+	if err != nil {
+		return err
+	}
+	if configured {
+		return nil
+	}
+	if err := store.SetResumeMinDelaySeconds(ctx, cfg.Compliance.MinDelaySeconds); err != nil {
+		return err
+	}
+	return store.SetResumeMaxPerHour(ctx, cfg.Compliance.MaxPerHour)
 }
 
 // runs fns concurrently, cancelling all of them on the first return

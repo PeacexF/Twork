@@ -24,6 +24,9 @@ const (
 	settingNotificationMode       = "notifications.mode"
 	settingDigestTime             = "notifications.digest_time"
 	settingBotOwnerID             = "bot.owner_id"
+	settingResumeGlobalText       = "resume.global_text"
+	settingResumeMinDelaySeconds  = "resume.min_delay_seconds"
+	settingResumeMaxPerHour       = "resume.max_per_hour"
 )
 
 // how matches are surfaced to the user

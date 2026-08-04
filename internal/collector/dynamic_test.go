@@ -247,3 +247,13 @@ func TestHandleUpdates_Envelopes(t *testing.T) {
 		t.Errorf("expected no extra messages, got %d", len(*seen))
 	}
 }
+
+// SendText refuses to address a chat the collector hasn't resolved --
+// notably, this is also what keeps it from ever reaching a DM: chatToResolved
+// never converts a bare user peer into a resolved entry in the first place.
+func TestSendText_UnresolvedChat(t *testing.T) {
+	c, _, _ := newTestCollector(t)
+	if err := c.SendText(context.Background(), 12345, "hi"); err == nil {
+		t.Error("expected an error for an unmonitored chat, got nil")
+	}
+}
