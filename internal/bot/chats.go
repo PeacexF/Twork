@@ -89,20 +89,20 @@ func (b *Bot) showChatsList(ctx context.Context, page int) {
 // shows the username/invite/folder add choices
 // normalizes the pasted input and routes it to the right source method
 func (b *Bot) addChatFromInput(ctx context.Context, raw string) {
-	parsed, err := parseChatInput(raw)
+	parsed, err := ParseChatInput(raw)
 	if err != nil {
 		b.showAddError(ctx, err.Error())
 		return
 	}
-	switch parsed.kind {
-	case inputKindUsername:
-		chat, err := b.source.AddByUsername(ctx, parsed.value)
+	switch parsed.Kind {
+	case ChatInputKindUsername:
+		chat, err := b.source.AddByUsername(ctx, parsed.Value)
 		b.handleAddChatResult(ctx, chat, err)
-	case inputKindInvite:
-		chat, err := b.source.AddByInviteLink(ctx, parsed.value)
+	case ChatInputKindInvite:
+		chat, err := b.source.AddByInviteLink(ctx, parsed.Value)
 		b.handleAddChatResult(ctx, chat, err)
-	case inputKindFolder:
-		chats, err := b.source.AddFolder(ctx, parsed.value)
+	case ChatInputKindFolder:
+		chats, err := b.source.AddFolder(ctx, parsed.Value)
 		if err != nil || len(chats) == 0 {
 			b.handleAddChatResult(ctx, nil, err)
 			return

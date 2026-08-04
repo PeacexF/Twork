@@ -23,16 +23,27 @@ type Config struct {
 	Chats []ChatConfig `yaml:"chats"`
 }
 
+// recommended compliance defaults, referenced by config.go, the
+// broadcaster, and the web dashboard so the number "300"/"10" isn't
+// repeated as an unexplained literal in several places. Lowering them is
+// not recommended -- see ComplianceConfig below.
+const (
+	DefaultResumeMinDelaySeconds = 300
+	DefaultResumeMaxPerHour      = 10
+)
+
 // safety limits for resume broadcasting, seeded into the database on
 // first run; after that the bot/web dashboard are authoritative
 type ComplianceConfig struct {
 	// Minimum seconds between two resume sends into the SAME chat.
-	// Hardcoded default is 300 (5 min). Overridable here, but lowering it
-	// meaningfully raises the risk of Telegram flagging, rate-limiting, or
-	// permanently banning the account -- this holds true even on Premium.
+	// Hardcoded default is DefaultResumeMinDelaySeconds (5 min). Overridable
+	// here, but lowering it meaningfully raises the risk of Telegram
+	// flagging, rate-limiting, or permanently banning the account -- this
+	// holds true even on Premium.
 	MinDelaySeconds int `yaml:"min_delay_seconds"`
 	// Maximum resume sends across ALL chats combined, per rolling hour.
-	// Hardcoded default is 10. Same warning as above: not recommended to raise.
+	// Hardcoded default is DefaultResumeMaxPerHour. Same warning as above:
+	// not recommended to raise.
 	MaxPerHour int `yaml:"max_per_hour"`
 }
 
@@ -157,10 +168,10 @@ func Load(path string) (*Config, error) {
 	}
 
 	if cfg.Compliance.MinDelaySeconds == 0 {
-		cfg.Compliance.MinDelaySeconds = 300
+		cfg.Compliance.MinDelaySeconds = DefaultResumeMinDelaySeconds
 	}
 	if cfg.Compliance.MaxPerHour == 0 {
-		cfg.Compliance.MaxPerHour = 10
+		cfg.Compliance.MaxPerHour = DefaultResumeMaxPerHour
 	}
 	if cfg.Web.Addr == "" {
 		cfg.Web.Addr = "127.0.0.1:8787"

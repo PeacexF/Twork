@@ -8,6 +8,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/PeacexF/Twork/internal/config"
 	"github.com/PeacexF/Twork/internal/models"
 	"github.com/PeacexF/Twork/internal/storage"
 )
@@ -53,12 +54,12 @@ func (b *Broadcaster) Run(ctx context.Context) error {
 // sends the resume into every due chat, respecting the per-chat cooldown
 // (never below the configured floor) and the rolling global hourly cap
 func (b *Broadcaster) tick(ctx context.Context, now time.Time) {
-	minDelay, err := b.store.GetResumeMinDelaySeconds(ctx, 300)
+	minDelay, err := b.store.GetResumeMinDelaySeconds(ctx, config.DefaultResumeMinDelaySeconds)
 	if err != nil {
 		log.Printf("twork/broadcaster: reading min delay failed: %v", err)
 		return
 	}
-	maxPerHour, err := b.store.GetResumeMaxPerHour(ctx, 10)
+	maxPerHour, err := b.store.GetResumeMaxPerHour(ctx, config.DefaultResumeMaxPerHour)
 	if err != nil {
 		log.Printf("twork/broadcaster: reading max per hour failed: %v", err)
 		return
