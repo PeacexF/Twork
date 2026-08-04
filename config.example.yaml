@@ -70,7 +70,7 @@ matching:
 
 notifications:
   enabled: true
-  # thw rest is configurred in the bot (the method of notifications reaching you)
+  # the rest is configurred in the bot (the method of notifications reaching you)
   # Defaults: live pings, digest at 09:00 server local time.
 
 # Chats to monitor. Use "username" for public channels/groups, or "id"

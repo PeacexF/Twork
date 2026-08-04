@@ -30,7 +30,10 @@ type fakeAPI struct {
 
 // records calls and replies with a plausible success payload
 func (f *fakeAPI) handle(w http.ResponseWriter, r *http.Request) {
-	_ = r.ParseForm()
+	// file uploads (e.g. sendDocument) arrive as multipart/form-data
+	if err := r.ParseMultipartForm(32 << 20); err != nil && err != http.ErrNotMultipart {
+		_ = r.ParseForm()
+	}
 
 	method := path.Base(r.URL.Path)
 	f.mu.Lock()
