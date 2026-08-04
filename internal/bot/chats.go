@@ -46,6 +46,8 @@ func (b *Bot) handleChatCallback(ctx context.Context, data string) {
 		id, _ := strconv.ParseInt(strings.TrimPrefix(data, "chat:tag:"), 10, 64)
 		b.sess.editingTagFor = id
 		b.promptFor(ctx, inputEditTag, "Send a new tag/category for this chat (e.g. Backend, DevOps):")
+	case strings.HasPrefix(data, "chat:rb"):
+		b.handleChatResumeCallback(ctx, data)
 	}
 }
 
@@ -194,17 +196,29 @@ func (b *Bot) showChatDetail(ctx context.Context, telegramID int64) {
 		text += fmt.Sprintf("\nTag: %s", c.Tag)
 	}
 
-	kb := tgbotapi.NewInlineKeyboardMarkup(
+	rows := [][]tgbotapi.InlineKeyboardButton{
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData(toggleLabel, toggleData),
 			tgbotapi.NewInlineKeyboardButtonData("🏷 Edit tag", fmt.Sprintf("chat:tag:%d", c.TelegramID)),
 		),
+	}
+	// Resume broadcasting is only ever valid for a group: a regular member
+	// usually can't post into a channel, and an admin "sending" would blast
+	// every subscriber instead of building presence in a group. Omitting
+	// the button entirely for channels means there's no path to it from
+	// the bot at all, not just a disabled one.
+	if c.Kind == models.ChatKindGroup {
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("📨 Auto-post resume", fmt.Sprintf("chat:rb:%d", c.TelegramID)),
+		))
+	}
+	rows = append(rows,
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("🗑 Remove", fmt.Sprintf("chat:remove_ask:%d", c.TelegramID)),
 		),
 		tgbotapi.NewInlineKeyboardRow(backButton("chat:page:0")),
 	)
-	b.editHome(ctx, text, kb)
+	b.editHome(ctx, text, tgbotapi.NewInlineKeyboardMarkup(rows...))
 }
 
 // asks for confirmation before removing a chat

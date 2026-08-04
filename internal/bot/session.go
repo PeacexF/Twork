@@ -12,14 +12,16 @@ const (
 type pendingInput string
 
 const (
-	inputNone        pendingInput = ""
-	inputAddChat     pendingInput = "add_chat"
-	inputFindChats   pendingInput = "find_chats"
-	inputSearchQuery pendingInput = "search_query"
-	inputNewGroup    pendingInput = "new_group"
-	inputAddAlias    pendingInput = "add_alias"
-	inputEditTag     pendingInput = "edit_tag"
-	inputDigestTime  pendingInput = "digest_time"
+	inputNone           pendingInput = ""
+	inputAddChat        pendingInput = "add_chat"
+	inputFindChats      pendingInput = "find_chats"
+	inputSearchQuery    pendingInput = "search_query"
+	inputNewGroup       pendingInput = "new_group"
+	inputAddAlias       pendingInput = "add_alias"
+	inputEditTag        pendingInput = "edit_tag"
+	inputDigestTime     pendingInput = "digest_time"
+	inputResumeInterval pendingInput = "resume_interval"
+	inputResumeText     pendingInput = "resume_text"
 )
 
 type session struct {
@@ -35,4 +37,5 @@ type session struct {
 	editingTagFor        int64
 	editingGroupToken    string // group token being edited (add alias)
 	editingGroupPositive bool   // polarity for a group being created
+	editingResumeFor     int64  // chat being edited for resume broadcasting; 0 means the global resume text
 }

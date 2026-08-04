@@ -6,29 +6,31 @@ import (
 	"strings"
 )
 
-// chatInputKind classifies what the user pasted into the add-chat prompt.
-type chatInputKind int
+// ChatInputKind classifies what the user pasted into the add-chat prompt.
+type ChatInputKind int
 
 const (
-	inputKindUsername chatInputKind = iota
-	inputKindInvite
-	inputKindFolder
-	inputKindUnknown
+	ChatInputKindUsername ChatInputKind = iota
+	ChatInputKindInvite
+	ChatInputKindFolder
+	ChatInputKindUnknown
 )
 
-// parsedChatInput is the normalized result of whatever the user typed.
-type parsedChatInput struct {
-	kind  chatInputKind
-	value string // bare username, invite hash, or folder slug depending on kind
+// ParsedChatInput is the normalized result of whatever the user typed.
+// Exported so internal/web can drive the same add-chat flow the bot uses.
+type ParsedChatInput struct {
+	Kind  ChatInputKind
+	Value string // bare username, invite hash, or folder slug depending on Kind
 }
 
 var usernameRe = regexp.MustCompile(`^[a-zA-Z0-9_]{4,32}$`)
 
-// classifies and normalizes a pasted username/link into a username, invite hash, or folder slug
-func parseChatInput(raw string) (parsedChatInput, error) {
+// ParseChatInput classifies and normalizes a pasted username/link into a
+// username, invite hash, or folder slug.
+func ParseChatInput(raw string) (ParsedChatInput, error) {
 	s := strings.TrimSpace(raw)
 	if s == "" {
-		return parsedChatInput{}, fmt.Errorf("nothing was entered")
+		return ParsedChatInput{}, fmt.Errorf("nothing was entered")
 	}
 
 	s = strings.TrimPrefix(s, "https://")
@@ -43,15 +45,15 @@ func parseChatInput(raw string) (parsedChatInput, error) {
 	case strings.HasPrefix(s, "addlist/"):
 		slug := strings.TrimPrefix(s, "addlist/")
 		if slug == "" {
-			return parsedChatInput{}, fmt.Errorf("that folder link is missing its code")
+			return ParsedChatInput{}, fmt.Errorf("that folder link is missing its code")
 		}
-		return parsedChatInput{kind: inputKindFolder, value: slug}, nil
+		return ParsedChatInput{Kind: ChatInputKindFolder, Value: slug}, nil
 
 	case strings.HasPrefix(s, "+"):
-		return parsedChatInput{kind: inputKindInvite, value: strings.TrimPrefix(s, "+")}, nil
+		return ParsedChatInput{Kind: ChatInputKindInvite, Value: strings.TrimPrefix(s, "+")}, nil
 
 	case strings.HasPrefix(s, "joinchat/"):
-		return parsedChatInput{kind: inputKindInvite, value: strings.TrimPrefix(s, "joinchat/")}, nil
+		return ParsedChatInput{Kind: ChatInputKindInvite, Value: strings.TrimPrefix(s, "joinchat/")}, nil
 	}
 
 	// Strip a leading @ and anything after the username (e.g. t.me/name/123 -> name).
@@ -61,10 +63,10 @@ func parseChatInput(raw string) (parsedChatInput, error) {
 	}
 
 	if s == "" {
-		return parsedChatInput{}, fmt.Errorf("couldn't find a username in that")
+		return ParsedChatInput{}, fmt.Errorf("couldn't find a username in that")
 	}
 	if !usernameRe.MatchString(s) {
-		return parsedChatInput{}, fmt.Errorf("%q doesn't look like a valid Telegram username or link", raw)
+		return ParsedChatInput{}, fmt.Errorf("%q doesn't look like a valid Telegram username or link", raw)
 	}
-	return parsedChatInput{kind: inputKindUsername, value: s}, nil
+	return ParsedChatInput{Kind: ChatInputKindUsername, Value: s}, nil
 }

@@ -28,6 +28,8 @@ func (b *Bot) handleSettingsCallback(ctx context.Context, data string) {
 		b.cycleNotificationMode(ctx)
 	case "settings:digest_time":
 		b.promptFor(ctx, inputDigestTime, "Send the daily digest time in 24h HH:MM format (server local time), e.g. 09:00:")
+	case "settings:resume_text":
+		b.promptGlobalResumeText(ctx)
 	}
 	b.showSettingsMenu(ctx)
 }
@@ -96,6 +98,9 @@ func (b *Bot) showSettingsMenu(ctx context.Context) {
 			tgbotapi.NewInlineKeyboardButtonData("🕘 Digest time: "+digestTime, "settings:digest_time"),
 		})
 	}
+	rows = append(rows, []tgbotapi.InlineKeyboardButton{
+		tgbotapi.NewInlineKeyboardButtonData("📨 Edit resume text", "settings:resume_text"),
+	})
 	rows = append(rows, []tgbotapi.InlineKeyboardButton{backButton("menu:home")})
 
 	b.editHome(ctx, fmt.Sprintf("⚙️ Settings\n\nHow matches reach you: %s", notifyModeDescription(mode)), tgbotapi.NewInlineKeyboardMarkup(rows...))

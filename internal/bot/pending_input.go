@@ -36,5 +36,11 @@ func (b *Bot) handlePendingInput(ctx context.Context, msg *tgbotapi.Message) {
 
 	case inputDigestTime:
 		b.setDigestTime(ctx, text)
+
+	case inputResumeInterval:
+		b.setChatResumeInterval(ctx, text)
+
+	case inputResumeText:
+		b.setResumeText(ctx, text)
 	}
 }
